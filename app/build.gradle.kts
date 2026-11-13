@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -9,7 +11,7 @@ fun env(name: String, fallback: String = "") = System.getenv(name)?.takeIf { it.
 
 // Supabase URL + anon (publishable) key: env vars, or supabase.properties in the repo root.
 // The anon key is public by design; Row Level Security (supabase/schema.sql) protects the data.
-val supa = java.util.Properties().apply {
+val supa = Properties().apply {
     val f = rootProject.file("supabase.properties")
     if (f.exists()) f.inputStream().use { load(it) }
 }
