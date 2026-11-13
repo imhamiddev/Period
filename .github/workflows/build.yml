@@ -36,7 +36,15 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-        run: gradle :app:assembleRelease --no-daemon -PversionName="$VERSION_NAME" -PversionCode="$GITHUB_RUN_NUMBER"
+        run: |
+          set -o pipefail
+          gradle :app:assembleRelease --no-daemon -PversionName="$VERSION_NAME" -PversionCode="$GITHUB_RUN_NUMBER" 2>&1 | tee build.log
+
+      - name: Report build errors
+        if: failure()
+        run: |
+          msg=$(grep -E '^e: |error:|What went wrong|Execution failed|> ' build.log | head -60 | cut -c1-400 | sed 's/$/%0A/' | tr -d '\n')
+          echo "::error title=build-errors::$msg"
 
       - name: Rename APK
         run: cp app/build/outputs/apk/release/app-release.apk "luna-${VERSION_NAME}.apk"
