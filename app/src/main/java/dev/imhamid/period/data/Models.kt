@@ -1,0 +1,50 @@
+package dev.imhamid.period.data
+
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+
+@Serializable
+data class Profile(
+    val id: String,
+    val email: String? = null,
+    val name: String? = null,
+    val role: String? = null,
+    @SerialName("pair_code") val pairCode: String? = null,
+    @SerialName("cycle_length") val cycleLength: Int = 28,
+    @SerialName("period_length") val periodLength: Int = 5,
+    @SerialName("luteal_length") val lutealLength: Int = 14,
+    @SerialName("pms_days") val pmsDays: Int = 5,
+    @SerialName("share_enabled") val shareEnabled: Boolean = true,
+    @SerialName("notify_enabled") val notifyEnabled: Boolean = true,
+    val onboarded: Boolean = false,
+)
+
+@Serializable
+data class PairRow(
+    val id: String,
+    @SerialName("her_id") val herId: String,
+    @SerialName("partner_id") val partnerId: String,
+    val status: String,
+)
+
+@Serializable
+data class LogRow(val day: String)
+
+@Serializable
+data class AuthUser(val id: String, val email: String? = null)
+
+@Serializable
+data class AuthResponse(
+    @SerialName("access_token") val accessToken: String? = null,
+    @SerialName("refresh_token") val refreshToken: String? = null,
+    val user: AuthUser? = null,
+)
+
+class Snapshot(
+    val me: Profile,
+    val pairs: List<PairRow>,
+    val others: Map<String, Profile>,
+    /** The person whose cycle is tracked: me (role=her) or my active partner. */
+    val owner: Profile?,
+    val logs: Set<java.time.LocalDate>,
+)
