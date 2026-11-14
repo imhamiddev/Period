@@ -29,6 +29,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -309,38 +310,82 @@ private fun HomeTab(vm: AppVM, onOpenDay: (LocalDate) -> Unit) {
                         )
                     }
                 }
+                if (ov?.hasData == true && engine != null) {
+                    Spacer(Modifier.height(16.dp))
+                    Reveal(3, Modifier.fillMaxWidth()) {
+                        Row(
+                            Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(Color.White.copy(alpha = 0.14f))
+                                .padding(vertical = 14.dp),
+                            horizontalArrangement = Arrangement.SpaceEvenly,
+                        ) {
+                            HeroStat("روز چرخه", ov.cycleDay?.let { Fa.n(it) } ?: "—")
+                            HeroStat("طول چرخه", "${Fa.n(ov.cycleLength)} روز")
+                            HeroStat("طول پریود", "${Fa.n(engine.predictedPeriod)} روز")
+                            HeroStat("دقت", "±${Fa.n(ov.variability)}")
+                        }
+                    }
+                }
                 Spacer(Modifier.height(8.dp))
             }
         }
 
         // ---------------- cards
-        Column(Modifier.padding(horizontal = 20.dp).padding(top = 18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Column(Modifier.padding(horizontal = 20.dp).padding(top = 22.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
             if (!isHer && owner == null) {
                 Reveal(0) { ConnectCard(vm, s.pairs) }
             } else if (paused) {
                 Reveal(0) { Card { Txt("$ownerName اشتراک‌گذاری رو موقتاً متوقف کرده؛ وقتی فعالش کنه دوباره اطلاعات می‌رسه.", 15.sp, color = C.Muted) } }
             } else {
-                if ((ov?.lateDays ?: 0) >= 1) Reveal(0) { LateCard(vm, ov!!.lateDays, isHer, ownerName, today) }
-                if (isHer) Reveal(0) { TodayCard(vm, engine, today) }
-                Reveal(1) { MoodCard(vm, today, isHer, ownerName, onOpenDay) }
-                if (!isHer) Reveal(1) {
-                    Card {
-                        Column {
-                            Txt("امروز چه کار کنم؟", 14.sp, color = C.Muted)
-                            Spacer(Modifier.height(6.dp))
-                            Txt(Fa.partnerTip(ov?.phase, ownerName), 16.sp)
+                // ---- today
+                Reveal(0) {
+                    HomeSection(if (isHer) "امروز" else "امروز، یه نگاه") {
+                        if ((ov?.lateDays ?: 0) >= 1) LateCard(vm, ov!!.lateDays, isHer, ownerName, today)
+                        if (isHer) TodayCard(vm, engine, today)
+                        MoodCard(vm, today, isHer, ownerName, onOpenDay)
+                        if (!isHer) {
+                            Card {
+                                Column {
+                                    Txt("امروز چه کار کنم؟", 14.sp, color = C.Muted)
+                                    Spacer(Modifier.height(6.dp))
+                                    Txt(Fa.partnerTip(ov?.phase, ownerName), 16.sp)
+                                }
+                            }
+                        } else if (ov?.hasData == true) {
+                            Card { Column { Txt("برای تو", 14.sp, color = C.Muted); Spacer(Modifier.height(6.dp)); Txt(Fa.herTip(ov.phase), 16.sp) } }
                         }
                     }
-                } else if (ov?.hasData == true) Reveal(1) {
-                    Card { Column { Txt("برای تو", 14.sp, color = C.Muted); Spacer(Modifier.height(6.dp)); Txt(Fa.herTip(ov.phase), 16.sp) } }
                 }
-                if (s.activePair != null) Reveal(2) { MessagesCard(vm) }
-                if (ov?.hasData == true) Reveal(2) { UpcomingCard(ov) }
-                if (ov?.hasData == true) Reveal(3) { StatsCard(ov, engine!!) }
+                // ---- upcoming
+                if (ov?.hasData == true) Reveal(1) {
+                    HomeSection("پیش رو") { UpcomingCard(ov) }
+                }
+                // ---- messages
+                if (s.activePair != null) Reveal(2) {
+                    HomeSection("پیام‌ها") { MessagesCard(vm) }
+                }
             }
-            if (isHer) Reveal(4) { ShareCard(vm) }
-            Spacer(Modifier.height(110.dp))
+            // ---- partner sharing
+            if (isHer) Reveal(3) {
+                HomeSection("پارتنر") { ShareCard(vm) }
+            }
+            Spacer(Modifier.height(86.dp))
         }
+    }
+}
+
+@Composable
+private fun HomeSection(title: String, content: @Composable ColumnScope.() -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Txt(title, 13.sp, FontWeight.Medium, C.Muted, Modifier.padding(horizontal = 6.dp))
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp), content = content)
+    }
+}
+
+@Composable
+private fun HeroStat(label: String, value: String) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Txt(value, 16.sp, FontWeight.Medium, Color.White)
+        Txt(label, 11.sp, color = Color.White.copy(alpha = 0.75f))
     }
 }
 
@@ -475,25 +520,6 @@ private fun EventRow(color: Color, title: String, whenText: String, date: String
             Txt(date, 13.sp, color = C.Muted)
         }
         Txt(whenText, 14.sp, FontWeight.Medium, C.Green)
-    }
-}
-
-@Composable
-private fun StatsCard(ov: Overview, engine: CycleEngine) {
-    Card {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Stat("طول چرخه", "${Fa.n(ov.cycleLength)} روز")
-            Stat("طول پریود", "${Fa.n(engine.predictedPeriod)} روز")
-            Stat("دقت", "±${Fa.n(ov.variability)} روز")
-        }
-    }
-}
-
-@Composable
-private fun Stat(label: String, value: String) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Txt(value, 18.sp, FontWeight.Medium)
-        Txt(label, 12.sp, color = C.Muted)
     }
 }
 
@@ -703,160 +729,5 @@ private fun DayCell(d: LocalDate, today: LocalDate, engine: CycleEngine?, days: 
         if (days[d]?.let { it.mood != null || it.symptoms.isNotEmpty() } == true) {
             Box(Modifier.align(Alignment.BottomCenter).padding(bottom = 3.dp).size(4.dp).clip(CircleShape).background(C.Ink.copy(alpha = 0.55f)))
         }
-    }
-}
-
-// ============================================================================ settings tab
-@Composable
-private fun SettingsTab(vm: AppVM) {
-    val s = vm.snap ?: return
-    val me = s.me
-    val isHer = me.role == "her"
-    var editName by remember { mutableStateOf(false) }
-    var nameText by remember(me.name) { mutableStateOf(me.name.orEmpty()) }
-
-    Column(Modifier.fillMaxSize().background(C.Paper).statusBarsPadding().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp)) {
-        Spacer(Modifier.height(20.dp))
-        Reveal(0) { Txt("تنظیمات", 32.sp, FontWeight.Light) }
-        Spacer(Modifier.height(18.dp))
-        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            Reveal(1) {
-                Card {
-                    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(Modifier.size(52.dp).clip(CircleShape).background(C.Lime), contentAlignment = Alignment.Center) {
-                                Txt(me.name.orEmpty().take(1), 22.sp, FontWeight.Bold, C.Deep)
-                            }
-                            Spacer(Modifier.size(14.dp))
-                            Column(Modifier.weight(1f)) {
-                                Txt(me.name.orEmpty(), 18.sp, FontWeight.Medium)
-                                Txt(me.email.orEmpty(), 12.sp, color = C.Muted)
-                                Txt(if (isHer) "ثبت‌کننده‌ی چرخه" else "پارتنر", 12.sp, color = C.Green)
-                            }
-                            Txt(if (editName) "بستن" else "ویرایش", 13.sp, FontWeight.Medium, C.Green, Modifier.pressable { editName = !editName })
-                        }
-                        androidx.compose.animation.AnimatedVisibility(editName) {
-                            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                Field(nameText, { nameText = it }, "نام")
-                                PrimaryButton("ذخیره", { vm.saveName(nameText); editName = false }, loading = vm.busy)
-                            }
-                        }
-                    }
-                }
-            }
-
-            if (isHer) Reveal(2) {
-                Card {
-                    Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
-                        Txt("چرخه", 14.sp, color = C.Muted)
-                        SettingStepper("طول چرخه", me.cycleLength, 20, 45) { v -> vm.patch { put("cycle_length", v) } }
-                        SettingStepper("طول پریود", me.periodLength, 2, 10) { v -> vm.patch { put("period_length", v) } }
-                        SettingStepper("روزهای PMS", me.pmsDays, 1, 10) { v -> vm.patch { put("pms_days", v) } }
-                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Txt("نظم چرخه", 16.sp)
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                listOf("منظم", "کمی بالا و پایین", "نامنظم").forEachIndexed { i, t ->
-                                    Chip(t, me.regularity == i, { vm.patch { put("regularity", i) } })
-                                }
-                            }
-                        }
-                        SettingSwitch("روش هورمونی", "قرص، آی‌یودی هورمونی، آمپول… (باروری و تخمک‌گذاری نمایش داده نمی‌شه)", me.hormonal) { v -> vm.patch { put("hormonal", v) } }
-                    }
-                }
-                Spacer(Modifier.height(0.dp))
-            }
-            if (isHer) Reveal(3) {
-                Card {
-                    SettingSwitch("اشتراک با پارتنر", "اگه خاموش باشه پارتنرت چیزی نمی‌بینه", me.shareEnabled) { v -> vm.patch { put("share_enabled", v) } }
-                }
-            }
-            Reveal(4) {
-                Card {
-                    Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
-                        SettingSwitch("نوتیفیکیشن", if (isHer) "یادآوری PMS و پریود" else "خبر PMS و پریود پارتنرت", me.notifyEnabled) { v -> vm.patch { put("notify_enabled", v) } }
-                        androidx.compose.animation.AnimatedVisibility(me.notifyEnabled) {
-                            Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
-                                SettingStepper("ساعت یادآوری", me.notifyHour, 5, 23, { Fa.hour(it) }) { v -> vm.patch { put("notify_hour", v) } }
-                                SettingSwitch("PMS", "یک روز قبل و روز شروع", me.notifyPms) { v -> vm.patch { put("notify_pms", v) } }
-                                SettingSwitch("پریود", "دو روز قبل و روز پریود", me.notifyPeriod) { v -> vm.patch { put("notify_period", v) } }
-                                if (s.owner?.hormonal != true) SettingSwitch("تخمک‌گذاری", "روز تخمین‌زده‌شده", me.notifyOvulation) { v -> vm.patch { put("notify_ovulation", v) } }
-                                SettingSwitch("تأخیر پریود", "اگه از موعد دیرتر شد", me.notifyLate) { v -> vm.patch { put("notify_late", v) } }
-                            }
-                        }
-                    }
-                }
-            }
-            Reveal(5) {
-                val ctx = LocalContext.current
-                Card {
-                    SettingSwitch("قفل برنامه", "اثر انگشت، Face یا قفل گوشی", vm.lockEnabled) { v ->
-                        val act = ctx.findFragmentActivity()
-                        if (act == null || !Biometrics.available(ctx)) {
-                            vm.error = "اول روی گوشی قفل صفحه یا اثر انگشت تنظیم کن"
-                        } else {
-                            Biometrics.prompt(act, if (v) "فعال‌سازی قفل" else "غیرفعال‌سازی قفل", { vm.setLock(v) })
-                        }
-                    }
-                }
-            }
-            if (!isHer && s.pairs.isNotEmpty()) Reveal(6) {
-                Card {
-                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Txt("اتصال", 14.sp, color = C.Muted)
-                        s.pairs.forEach { p ->
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Column(Modifier.weight(1f)) {
-                                    Txt(s.others[p.herId]?.name ?: "درخواست ارسال‌شده", 16.sp, FontWeight.Medium)
-                                    Txt(if (p.status == "pending") "منتظر تایید" else "وصل است", 12.sp, color = if (p.status == "pending") C.Amber else C.Green)
-                                }
-                                RoundIcon(Icons.Rounded.Close, C.Paper, C.Muted) { vm.removePair(p.id) }
-                            }
-                        }
-                    }
-                }
-            }
-            Reveal(6) {
-                Card {
-                    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                        Txt("نسخه‌ی ${Fa.digits(BuildConfig.VERSION_NAME)}", 15.sp, FontWeight.Medium)
-                        PrimaryButton("بررسی آپدیت", { vm.checkUpdate() }, kind = BtnKind.Lime)
-                        PrimaryButton(
-                            "خروج از حساب", { vm.logout() }, kind = BtnKind.Light,
-                            modifier = Modifier.border(1.dp, C.Line, RoundedCornerShape(29.dp)),
-                            icon = { Icon(Icons.AutoMirrored.Rounded.Logout, null, tint = C.Ink, modifier = Modifier.size(20.dp)) },
-                        )
-                    }
-                }
-            }
-        }
-        Spacer(Modifier.height(130.dp))
-    }
-}
-
-@Composable
-private fun SettingStepper(label: String, value: Int, min: Int, max: Int, format: (Int) -> String = { Fa.n(it) }, onChange: (Int) -> Unit) {
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Txt(label, 16.sp, modifier = Modifier.weight(1f))
-        RoundIcon(Icons.Rounded.ChevronRight, C.Paper, C.Ink) { if (value < max) onChange(value + 1) }
-        Box(Modifier.size(64.dp, 40.dp), contentAlignment = Alignment.Center) {
-            AnimatedContent(value, transitionSpec = { fadeIn(tween(200)) togetherWith fadeOut(tween(150)) }, label = "sv") { v ->
-                Txt(format(v), 18.sp, FontWeight.Medium)
-            }
-        }
-        RoundIcon(Icons.Rounded.ChevronLeft, C.Paper, C.Ink) { if (value > min) onChange(value - 1) }
-    }
-}
-
-@Composable
-private fun SettingSwitch(title: String, sub: String, checked: Boolean, onChange: (Boolean) -> Unit) {
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Column(Modifier.weight(1f)) {
-            Txt(title, 16.sp, FontWeight.Medium)
-            Txt(sub, 12.sp, color = C.Muted)
-        }
-        Switch(
-            checked, onChange,
-            colors = SwitchDefaults.colors(checkedTrackColor = C.Green, checkedThumbColor = Color.White, uncheckedTrackColor = Color(0xFFD9DED9), uncheckedThumbColor = Color.White, uncheckedBorderColor = Color.Transparent),
-        )
     }
 }
