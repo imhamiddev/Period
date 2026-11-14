@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.imhamid.period.engine.CycleEngine
+import dev.imhamid.period.engine.toEngine
 import dev.imhamid.period.engine.Phase
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
@@ -47,7 +48,7 @@ fun StatsTab(vm: AppVM) {
     val owner = s.owner
     val today = remember { LocalDate.now() }
     val engine = remember(s.logs, owner) {
-        owner?.let { CycleEngine(today, s.logs, it.cycleLength, it.periodLength, it.lutealLength, it.pmsDays) }
+        owner?.toEngine(today, s.logs)
     }
     val ownerName = owner?.name?.takeIf { it.isNotBlank() } ?: "پارتنرت"
 

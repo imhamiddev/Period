@@ -61,6 +61,10 @@ class CycleEngine(
     private val defaultPeriod: Int = 5,
     private val luteal: Int = 14,
     val pmsDays: Int = 5,
+    /** 0 = regular (±2 d), 1 = fairly regular (±4 d), 2 = irregular (±7 d). Used as a prior until enough cycles are known. */
+    private val regularity: Int = 0,
+    /** Hormonal contraception: no ovulation / fertile window. */
+    val hormonal: Boolean = false,
 ) {
     val bleedingSet: Set<LocalDate> = bleeding.toSet()
     val periods: List<Period> = derivePeriods(bleedingSet)
@@ -68,11 +72,14 @@ class CycleEngine(
         .filter { it in MIN_CYCLE..MAX_CYCLE }
     val predictedCycle: Int = blend(cycleLengths, defaultCycle)
     val predictedPeriod: Int = max(1, min(blend(periods.filter { it.end < today }.map { it.length }, defaultPeriod), 12))
+    private val priorVariability: Int = when (regularity) { 0 -> 2; 2 -> 7; else -> 4 }
     val variability: Int = if (cycleLengths.size >= 2) {
         val v = cycleLengths.takeLast(6)
         val mean = v.average()
-        max(1, min(7, ceil(sqrt(v.sumOf { (it - mean).pow(2) } / v.size)).toInt()))
-    } else 2
+        val measured = max(1, min(7, ceil(sqrt(v.sumOf { (it - mean).pow(2) } / v.size)).toInt()))
+        // with few cycles, never be more confident than what she told us
+        if (cycleLengths.size < 4) max(measured, priorVariability) else measured
+    } else priorVariability
     val segments: List<Segment> = buildSegments()
 
     private fun ovulationFor(start: LocalDate, length: Int): LocalDate {
@@ -111,8 +118,8 @@ class CycleEngine(
         val s = segmentFor(d) ?: return null
         return when {
             d <= s.periodEnd -> Phase.MENSTRUAL
-            d == s.ovulation -> Phase.OVULATION
-            d >= s.fertileStart && d <= s.fertileEnd -> Phase.FERTILE
+            !hormonal && d == s.ovulation -> Phase.OVULATION
+            !hormonal && d >= s.fertileStart && d <= s.fertileEnd -> Phase.FERTILE
             d >= s.end.minusDays(pmsDays - 1L) -> Phase.PMS
             d < s.ovulation -> Phase.FOLLICULAR
             else -> Phase.LUTEAL
@@ -135,7 +142,7 @@ class CycleEngine(
         val seg = segmentFor(today)
         val np = nextPeriod
         val pms = np?.minusDays(pmsDays.toLong())
-        val ov = upcomingOvulation()
+        val ov = if (hormonal) null else upcomingOvulation()
         val lastStart = periods.last().start
         val late = ChronoUnit.DAYS.between(lastStart, today).toInt() - predictedCycle
         val phase = phaseOn(today)
@@ -166,7 +173,7 @@ class CycleEngine(
         val out = mutableListOf<EventType>()
         o.daysToPms?.let { if (it == 1) out += EventType.PMS_TOMORROW; if (it == 0) out += EventType.PMS_STARTS }
         o.daysToPeriod?.let { if (it == 2) out += EventType.PERIOD_SOON; if (it == 0) out += EventType.PERIOD_TODAY }
-        if (o.daysToOvulation == 0) out += EventType.OVULATION
+        if (!hormonal && o.daysToOvulation == 0) out += EventType.OVULATION
         if (o.lateDays == 2 || o.lateDays == 5) out += EventType.PERIOD_LATE
         return out
     }
@@ -198,3 +205,6 @@ class CycleEngine(
         }
     }
 }
+
+fun dev.imhamid.period.data.Profile.toEngine(today: LocalDate, logs: Collection<LocalDate>) =
+    CycleEngine(today, logs, cycleLength, periodLength, lutealLength, pmsDays, regularity, hormonal)

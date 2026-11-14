@@ -22,6 +22,8 @@ data class Profile(
     @SerialName("notify_period") val notifyPeriod: Boolean = true,
     @SerialName("notify_ovulation") val notifyOvulation: Boolean = false,
     @SerialName("notify_late") val notifyLate: Boolean = true,
+    val regularity: Int = 0,
+    val hormonal: Boolean = false,
 )
 
 @Serializable

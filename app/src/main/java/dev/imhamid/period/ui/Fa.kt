@@ -174,5 +174,8 @@ object Fa {
         }
     }
 
+    fun range(d: LocalDate, v: Int): String =
+        if (v <= 0) date(d) else "${date(d.minusDays(v.toLong()))} تا ${date(d.plusDays(v.toLong()))}"
+
     fun hour(h: Int) = digits("$h:00")
 }

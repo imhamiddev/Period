@@ -149,15 +149,25 @@ class AppVM(private val app: Application) : AndroidViewModel(app) {
 
     fun saveRole(role: String) = patch { put("role", role) }
 
-    fun saveSetup(lastStart: LocalDate, cycle: Int, period: Int) {
+    fun saveSetup(
+        lastStart: LocalDate, earlier: List<LocalDate>, cycle: Int, period: Int,
+        pms: Int, regularity: Int, hormonal: Boolean,
+    ) {
         viewModelScope.launch {
             busy = true
             try {
-                val days = (0 until period).map { lastStart.plusDays(it.toLong()) }.filter { !it.isAfter(LocalDate.now()) }
+                val today = LocalDate.now()
+                val days = (earlier + lastStart)
+                    .flatMap { st -> (0 until period).map { st.plusDays(it.toLong()) } }
+                    .filter { !it.isAfter(today) }
+                    .distinct()
                 repo.addDays(days)
                 repo.updateProfile {
                     put("cycle_length", cycle)
                     put("period_length", period)
+                    put("pms_days", pms)
+                    put("regularity", regularity)
+                    put("hormonal", hormonal)
                     put("onboarded", true)
                 }
                 load()

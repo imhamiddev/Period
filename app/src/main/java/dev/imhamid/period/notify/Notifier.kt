@@ -15,7 +15,7 @@ import dev.imhamid.period.MainActivity
 import dev.imhamid.period.R
 import dev.imhamid.period.data.SessionStore
 import dev.imhamid.period.data.Snapshot
-import dev.imhamid.period.engine.CycleEngine
+import dev.imhamid.period.engine.toEngine
 import dev.imhamid.period.engine.EventType
 import dev.imhamid.period.ui.Fa
 import java.time.LocalDate
@@ -86,9 +86,7 @@ object Notifier {
         if (LocalTime.now().hour < me.notifyHour) return
         val owner = snap.owner ?: return
         if (!owner.shareEnabled && me.role == "partner") return
-        val engine = CycleEngine(
-            today, snap.logs, owner.cycleLength, owner.periodLength, owner.lutealLength, owner.pmsDays,
-        )
+        val engine = owner.toEngine(today, snap.logs)
         val forHer = me.role == "her"
         val herName = owner.name?.takeIf { it.isNotBlank() } ?: "پارتنرت"
         engine.dueEvents().forEach { ev ->

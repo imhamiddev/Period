@@ -46,6 +46,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.imhamid.period.engine.CycleEngine
+import dev.imhamid.period.engine.toEngine
 import kotlinx.coroutines.delay
 import java.time.LocalDate
 
@@ -57,7 +58,7 @@ fun DaySheet(vm: AppVM, day: LocalDate, onClose: () -> Unit) {
     val owner = s.owner
     val today = remember { LocalDate.now() }
     val engine = remember(s.logs, owner) {
-        owner?.let { CycleEngine(today, s.logs, it.cycleLength, it.periodLength, it.lutealLength, it.pmsDays) }
+        owner?.toEngine(today, s.logs)
     }
     val dl = s.days[day]
     val note = s.notes[day]

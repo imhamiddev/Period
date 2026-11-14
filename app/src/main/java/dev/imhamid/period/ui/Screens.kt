@@ -308,20 +308,40 @@ private fun RoleCard(id: String, selected: String?, title: String, desc: String,
 // ============================================================================ setup (her)
 @Composable
 fun SetupScreen(vm: AppVM) {
+    val total = 6
     var step by rememberSaveable { mutableIntStateOf(0) }
     val today = remember { LocalDate.now() }
     var lastStart by rememberSaveable { mutableStateOf(today.minusDays(10).toString()) }
+    var earlier by rememberSaveable { mutableStateOf(listOf<String>()) }
     var cycle by rememberSaveable { mutableIntStateOf(28) }
     var period by rememberSaveable { mutableIntStateOf(5) }
+    var pms by rememberSaveable { mutableIntStateOf(5) }
+    var regularity by rememberSaveable { mutableIntStateOf(0) }
+    var hormonal by rememberSaveable { mutableStateOf(false) }
+
+    fun next() {
+        if (step == 1) {
+            val all = (earlier + lastStart).map { LocalDate.parse(it) }.sorted()
+            if (all.size >= 2) {
+                val gaps = all.zipWithNext { x, y -> java.time.temporal.ChronoUnit.DAYS.between(x, y).toInt() }
+                cycle = Math.round(gaps.average()).toInt().coerceIn(20, 45)
+            }
+        }
+        if (step < total - 1) step++ else vm.saveSetup(
+            LocalDate.parse(lastStart),
+            earlier.map { LocalDate.parse(it) }.filter { it < LocalDate.parse(lastStart).minusDays(14) },
+            cycle, period, pms, regularity, hormonal,
+        )
+    }
 
     Box(Modifier.fillMaxSize().background(C.Paper)) {
         Aurora(Modifier.fillMaxWidth().height(250.dp)) {
             Column(Modifier.statusBarsPadding().padding(24.dp)) {
                 Txt("چند تا سؤال کوتاه", 15.sp, color = Color.White.copy(alpha = 0.85f))
                 Spacer(Modifier.height(10.dp))
-                StepBars(3, step)
+                StepBars(total, step)
                 Spacer(Modifier.height(10.dp))
-                Txt("مرحله‌ی ${Fa.n(step + 1)} از ۳", 13.sp, color = Color.White.copy(alpha = 0.75f))
+                Txt("مرحله‌ی ${Fa.n(step + 1)} از ${Fa.n(total)}", 13.sp, color = Color.White.copy(alpha = 0.75f))
             }
         }
         Column(
@@ -339,7 +359,7 @@ fun SetupScreen(vm: AppVM) {
                 },
                 label = "setup",
             ) { s ->
-                Column {
+                Column(Modifier.verticalScroll(rememberScrollState())) {
                     when (s) {
                         0 -> {
                             Txt("آخرین پریودت کی شروع شد؟", 26.sp, FontWeight.Light)
@@ -348,41 +368,127 @@ fun SetupScreen(vm: AppVM) {
                             Spacer(Modifier.height(22.dp))
                             LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                 items((0..60).map { today.minusDays(it.toLong()) }) { d ->
-                                    DayChip(d, d.toString() == lastStart) { lastStart = d.toString() }
+                                    DayChip(d, d.toString() == lastStart) {
+                                        lastStart = d.toString()
+                                        earlier = earlier.filter { LocalDate.parse(it) < d.minusDays(14) }
+                                    }
                                 }
                             }
                             Spacer(Modifier.height(18.dp))
                             Txt("انتخاب‌شده: ${Fa.date(LocalDate.parse(lastStart), "EEEE d MMMM")}", 15.sp, FontWeight.Medium, C.Green)
                         }
                         1 -> {
+                            val base = LocalDate.parse(lastStart)
+                            Txt("پریودهای قبلی (اختیاری)", 26.sp, FontWeight.Light)
+                            Spacer(Modifier.height(6.dp))
+                            Txt("اگه یادت هست، تاریخ شروع ۲ یا ۳ پریود قبلی رو بزن تا دقت پیش‌بینی از همون اول بیشتر بشه.", 14.sp, color = C.Muted)
+                            Spacer(Modifier.height(22.dp))
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                items((15..230).map { base.minusDays(it.toLong()) }) { d ->
+                                    DayChip(d, d.toString() in earlier) {
+                                        val ds = d.toString()
+                                        earlier = when {
+                                            ds in earlier -> earlier - ds
+                                            earlier.size >= 3 -> { vm.error = "حداکثر ۳ تا"; earlier }
+                                            earlier.any { kotlin.math.abs(java.time.temporal.ChronoUnit.DAYS.between(LocalDate.parse(it), d)) < 15 } -> {
+                                                vm.error = "این تاریخ به یکی از انتخاب‌هات خیلی نزدیکه"; earlier
+                                            }
+                                            else -> earlier + ds
+                                        }
+                                    }
+                                }
+                            }
+                            Spacer(Modifier.height(18.dp))
+                            Txt(
+                                if (earlier.isEmpty()) "چیزی انتخاب نشده؛ می‌تونی رد کنی." else "${Fa.n(earlier.size)} پریود انتخاب شد",
+                                15.sp, FontWeight.Medium, C.Green,
+                            )
+                        }
+                        2 -> {
                             Txt("طول معمول چرخه‌ات؟", 26.sp, FontWeight.Light)
                             Spacer(Modifier.height(6.dp))
                             Txt("از اولین روز یه پریود تا اولین روز پریود بعدی.", 14.sp, color = C.Muted)
                             Spacer(Modifier.height(36.dp))
                             Stepper(cycle, 20, 45, "روز") { cycle = it }
                         }
-                        else -> {
+                        3 -> {
                             Txt("پریودت معمولاً چند روزه؟", 26.sp, FontWeight.Light)
                             Spacer(Modifier.height(6.dp))
                             Txt("با گذر زمان خودم دقیق‌ترش می‌کنم.", 14.sp, color = C.Muted)
                             Spacer(Modifier.height(36.dp))
                             Stepper(period, 2, 10, "روز") { period = it }
                         }
+                        4 -> {
+                            Txt("PMS چند روز قبل از پریودت شروع می‌شه؟", 26.sp, FontWeight.Light, lineHeight = 38.sp)
+                            Spacer(Modifier.height(6.dp))
+                            Txt("معمولاً بین ۳ تا ۷ روزه؛ نوتیف‌های PMS به همین عدد وابسته‌ست.", 14.sp, color = C.Muted)
+                            Spacer(Modifier.height(36.dp))
+                            Stepper(pms, 1, 10, "روز") { pms = it }
+                        }
+                        else -> {
+                            Txt("دو تا سؤال آخر", 26.sp, FontWeight.Light)
+                            Spacer(Modifier.height(18.dp))
+                            Txt("چرخه‌ات چقدر منظمه؟", 15.sp, FontWeight.Medium)
+                            Spacer(Modifier.height(10.dp))
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OptionRow("منظم", "هر ماه تقریباً سر همون موعد (±۲ روز)", regularity == 0) { regularity = 0 }
+                                OptionRow("کمی بالا و پایین", "چند روز جلو و عقب می‌شه (±۴ روز)", regularity == 1) { regularity = 1 }
+                                OptionRow("نامنظم", "خیلی فرق می‌کنه (±۷ روز یا بیشتر)", regularity == 2) { regularity = 2 }
+                            }
+                            Spacer(Modifier.height(22.dp))
+                            Txt("روش هورمونی استفاده می‌کنی؟", 15.sp, FontWeight.Medium)
+                            Txt("قرص، آی‌یودی هورمونی، آمپول و…", 12.sp, color = C.Muted)
+                            Spacer(Modifier.height(10.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Box(Modifier.weight(1f)) { OptionRow("نه", "", !hormonal) { hormonal = false } }
+                                Box(Modifier.weight(1f)) { OptionRow("بله", "", hormonal) { hormonal = true } }
+                            }
+                            if (hormonal) {
+                                Spacer(Modifier.height(8.dp))
+                                Txt("پس تخمک‌گذاری و پنجره‌ی باروری رو نشون نمی‌دم، چون با روش هورمونی معنی نداره.", 12.sp, color = C.Muted)
+                            }
+                        }
                     }
                 }
             }
+            Spacer(Modifier.height(12.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 if (step > 0) {
                     Box(Modifier.width(110.dp)) { PrimaryButton("قبلی", { step-- }, kind = BtnKind.Light, modifier = Modifier.border(1.dp, C.Line, RoundedCornerShape(29.dp))) }
                 }
                 Box(Modifier.weight(1f)) {
                     PrimaryButton(
-                        if (step < 2) "بعدی" else "تمام",
-                        { if (step < 2) step++ else vm.saveSetup(LocalDate.parse(lastStart), cycle, period) },
+                        when {
+                            step == total - 1 -> "تمام"
+                            step == 1 && earlier.isEmpty() -> "رد کردن"
+                            else -> "بعدی"
+                        },
+                        { next() },
                         loading = vm.busy,
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun OptionRow(title: String, desc: String, selected: Boolean, onClick: () -> Unit) {
+    val border by animateColorAsState(if (selected) C.Green else C.Line, tween(250), label = "ob")
+    val bg by animateColorAsState(if (selected) C.LimeSoft else Color.White, tween(250), label = "obg")
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(bg)
+            .border(if (selected) 2.dp else 1.dp, border, RoundedCornerShape(20.dp))
+            .pressable(onClick = onClick).padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Txt(title, 15.sp, FontWeight.Medium)
+            if (desc.isNotEmpty()) Txt(desc, 12.sp, color = C.Muted)
+        }
+        val a by animateFloatAsState(if (selected) 1f else 0f, spring(0.5f), label = "ock")
+        Box(Modifier.size(22.dp).scale(a).alpha(a).clip(CircleShape).background(C.Green), contentAlignment = Alignment.Center) {
+            Icon(Icons.Rounded.Check, null, tint = Color.White, modifier = Modifier.size(14.dp))
         }
     }
 }

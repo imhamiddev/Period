@@ -95,6 +95,7 @@ import kotlinx.serialization.json.put
 import dev.imhamid.period.BuildConfig
 import dev.imhamid.period.data.PairRow
 import dev.imhamid.period.engine.CycleEngine
+import dev.imhamid.period.engine.toEngine
 import dev.imhamid.period.engine.Overview
 import dev.imhamid.period.engine.Phase
 import kotlinx.coroutines.delay
@@ -226,7 +227,7 @@ fun CycleRing(engine: CycleEngine?, ov: Overview?, modifier: Modifier = Modifier
                 }
                 fun idx(d: LocalDate) = ChronoUnit.DAYS.between(seg.start, d).toInt() + 1
                 arc(1, idx(seg.periodEnd), C.Coral)
-                if (idx(seg.fertileEnd) > idx(seg.periodEnd)) arc(idx(seg.fertileStart), idx(seg.fertileEnd), C.Lime)
+                if (!engine.hormonal && idx(seg.fertileEnd) > idx(seg.periodEnd)) arc(idx(seg.fertileStart), idx(seg.fertileEnd), C.Lime)
                 arc(seg.length - engine.pmsDays + 1, seg.length, C.Amber)
                 // marker for today
                 val day = (ov.cycleDay ?: 1).coerceIn(1, seg.length)
@@ -250,7 +251,7 @@ private fun HomeTab(vm: AppVM, onOpenDay: (LocalDate) -> Unit) {
     val owner = s.owner
     val today = remember { LocalDate.now() }
     val engine = remember(s.logs, owner) {
-        owner?.let { CycleEngine(today, s.logs, it.cycleLength, it.periodLength, it.lutealLength, it.pmsDays) }
+        owner?.toEngine(today, s.logs)
     }
     val ov = remember(engine) { engine?.overview() }
     val ownerName = owner?.name?.takeIf { it.isNotBlank() } ?: "پارتنرت"
@@ -455,7 +456,7 @@ private fun UpcomingCard(ov: Overview) {
                 EventRow(C.Amber, "شروع PMS", if (ov.inPms) "همین الان" else Fa.daysText(n), Fa.date(d))
             }
             ov.nextPeriod?.let { d ->
-                EventRow(C.Coral, "پریود بعدی", Fa.daysText(ov.daysToPeriod ?: 0), Fa.date(d))
+                EventRow(C.Coral, "پریود بعدی", Fa.daysText(ov.daysToPeriod ?: 0), Fa.range(d, ov.variability))
             }
             ov.ovulation?.let { d ->
                 EventRow(C.Lime, "تخمک‌گذاری", Fa.daysText(ov.daysToOvulation ?: 0), Fa.date(d))
@@ -590,7 +591,7 @@ private fun CalendarTab(vm: AppVM, onOpenDay: (LocalDate) -> Unit) {
     val owner = s.owner
     val today = remember { LocalDate.now() }
     val engine = remember(s.logs, owner) {
-        owner?.let { CycleEngine(today, s.logs, it.cycleLength, it.periodLength, it.lutealLength, it.pmsDays) }
+        owner?.toEngine(today, s.logs)
     }
     var month by rememberSaveable { mutableStateOf(Fa.jalaliMonth(today).first.toString()) }
     val first = LocalDate.parse(month)
@@ -652,8 +653,10 @@ private fun CalendarTab(vm: AppVM, onOpenDay: (LocalDate) -> Unit) {
                 Legend(C.Coral, "پریود (ثبت‌شده)")
                 Legend(C.CoralSoft, "پریود (پیش‌بینی)")
                 Legend(C.AmberSoft, "PMS")
-                Legend(C.LimeSoft, "پنجره‌ی باروری")
-                Legend(C.Lime, "تخمک‌گذاری")
+                if (engine?.hormonal != true) {
+                    Legend(C.LimeSoft, "پنجره‌ی باروری")
+                    Legend(C.Lime, "تخمک‌گذاری")
+                }
                 Legend(C.Ink.copy(alpha = 0.55f), "حال یا علائم ثبت شده")
                 Txt("روی هر روز بزن تا جزئیاتش رو ببینی.", 12.sp, color = C.Muted)
             }
@@ -749,6 +752,15 @@ private fun SettingsTab(vm: AppVM) {
                         SettingStepper("طول چرخه", me.cycleLength, 20, 45) { v -> vm.patch { put("cycle_length", v) } }
                         SettingStepper("طول پریود", me.periodLength, 2, 10) { v -> vm.patch { put("period_length", v) } }
                         SettingStepper("روزهای PMS", me.pmsDays, 1, 10) { v -> vm.patch { put("pms_days", v) } }
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Txt("نظم چرخه", 16.sp)
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                listOf("منظم", "کمی بالا و پایین", "نامنظم").forEachIndexed { i, t ->
+                                    Chip(t, me.regularity == i, { vm.patch { put("regularity", i) } })
+                                }
+                            }
+                        }
+                        SettingSwitch("روش هورمونی", "قرص، آی‌یودی هورمونی، آمپول… (باروری و تخمک‌گذاری نمایش داده نمی‌شه)", me.hormonal) { v -> vm.patch { put("hormonal", v) } }
                     }
                 }
                 Spacer(Modifier.height(0.dp))
@@ -767,7 +779,7 @@ private fun SettingsTab(vm: AppVM) {
                                 SettingStepper("ساعت یادآوری", me.notifyHour, 5, 23, { Fa.hour(it) }) { v -> vm.patch { put("notify_hour", v) } }
                                 SettingSwitch("PMS", "یک روز قبل و روز شروع", me.notifyPms) { v -> vm.patch { put("notify_pms", v) } }
                                 SettingSwitch("پریود", "دو روز قبل و روز پریود", me.notifyPeriod) { v -> vm.patch { put("notify_period", v) } }
-                                SettingSwitch("تخمک‌گذاری", "روز تخمین‌زده‌شده", me.notifyOvulation) { v -> vm.patch { put("notify_ovulation", v) } }
+                                if (s.owner?.hormonal != true) SettingSwitch("تخمک‌گذاری", "روز تخمین‌زده‌شده", me.notifyOvulation) { v -> vm.patch { put("notify_ovulation", v) } }
                                 SettingSwitch("تأخیر پریود", "اگه از موعد دیرتر شد", me.notifyLate) { v -> vm.patch { put("notify_late", v) } }
                             }
                         }
