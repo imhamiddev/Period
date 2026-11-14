@@ -12,7 +12,9 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
@@ -125,16 +127,10 @@ fun IntroScreen(vm: AppVM) {
                 text = if (last) "شروع کنیم" else "ادامه",
                 kind = BtnKind.Light,
                 onClick = {
-                    if (last) vm.finishIntro(true) else scope.launch { pager.animateScrollToPage(pager.currentPage + 1) }
+                    if (last) vm.finishIntro() else scope.launch { pager.animateScrollToPage(pager.currentPage + 1) }
                 },
             )
-            Spacer(Modifier.height(12.dp))
-            Box(Modifier.height(58.dp)) {
-                if (last) {
-                    PrimaryButton("قبلاً حساب دارم", { vm.finishIntro(false) }, kind = BtnKind.Glass)
-                }
-            }
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(20.dp))
         }
     }
 }
@@ -201,7 +197,6 @@ private fun IntroPitch() {
 // ============================================================================ auth
 @Composable
 fun AuthScreen(vm: AppVM) {
-    var signUp by rememberSaveable { mutableStateOf(vm.authStartsAsSignUp) }
     var email by rememberSaveable { mutableStateOf("") }
     var pass by rememberSaveable { mutableStateOf("") }
     Box(Modifier.fillMaxSize().background(C.Deep)) {
@@ -219,42 +214,26 @@ fun AuthScreen(vm: AppVM) {
             }
         }
         Column(
-            Modifier.align(Alignment.BottomCenter).fillMaxWidth().fillMaxHeight(0.66f)
+            Modifier.align(Alignment.BottomCenter).fillMaxWidth().fillMaxHeight(0.62f)
                 .clip(RoundedCornerShape(topStart = 36.dp, topEnd = 36.dp)).background(C.Paper)
                 .navigationBarsPadding().imePadding().verticalScroll(rememberScrollState()).padding(24.dp),
         ) {
-            Reveal(0) {
-                Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(Color.White).border(1.dp, C.Line, RoundedCornerShape(22.dp)).padding(5.dp)) {
-                    listOf(false to "ورود", true to "ثبت‌نام").forEach { (isSignUp, label) ->
-                        val sel = signUp == isSignUp
-                        val bg by animateColorAsState(if (sel) C.Ink else Color.Transparent, tween(300), label = "seg")
-                        val fg by animateColorAsState(if (sel) Color.White else C.Muted, tween(300), label = "segf")
-                        Box(
-                            Modifier.weight(1f).height(44.dp).clip(RoundedCornerShape(18.dp)).background(bg).pressable { signUp = isSignUp },
-                            contentAlignment = Alignment.Center,
-                        ) { Txt(label, 15.sp, FontWeight.Medium, fg) }
-                    }
-                }
-            }
+            Reveal(0) { Txt("خوش اومدی", 30.sp, FontWeight.Light) }
+            Spacer(Modifier.height(6.dp))
+            Reveal(1) { Txt("ایمیل و رمزت رو بزن؛ اگه حساب نداشته باشی خودم می‌سازمش.", 14.sp, color = C.Muted) }
             Spacer(Modifier.height(22.dp))
-            Reveal(1) {
-                AnimatedContent(signUp, transitionSpec = { fadeIn(tween(300)) togetherWith fadeOut(tween(200)) }, label = "ttl") { s ->
-                    Txt(if (s) "یه حساب بساز" else "خوش برگشتی", 26.sp, FontWeight.Light)
-                }
-            }
-            Spacer(Modifier.height(16.dp))
             Reveal(2) { Field(email, { email = it.trim() }, "ایمیل", keyboardType = KeyboardType.Email, ltr = true) }
             Spacer(Modifier.height(14.dp))
             Reveal(3) {
-                Field(pass, { pass = it }, "رمز عبور", password = true, imeAction = ImeAction.Go, onDone = { vm.submitAuth(signUp, email, pass) })
+                Field(pass, { pass = it }, "رمز عبور", password = true, imeAction = ImeAction.Go, onDone = { vm.submitAuth(email, pass) })
             }
             Spacer(Modifier.height(24.dp))
             Reveal(4) {
-                PrimaryButton(if (signUp) "ساخت حساب" else "ورود", { vm.submitAuth(signUp, email, pass) }, loading = vm.busy)
+                PrimaryButton("ادامه", { vm.submitAuth(email, pass) }, loading = vm.busy, enabled = email.isNotBlank() && pass.isNotBlank())
             }
             if (!vm.configured) {
                 Spacer(Modifier.height(14.dp))
-                Txt("⚠️ Supabase هنوز تنظیم نشده (SUPABASE_URL / SUPABASE_KEY)", 12.sp, color = C.Coral)
+                Txt("⚠️ Supabase هنوز تنظیم نشده", 12.sp, color = C.Coral)
             }
         }
     }
@@ -354,8 +333,9 @@ fun SetupScreen(vm: AppVM) {
                 step,
                 modifier = Modifier.weight(1f),
                 transitionSpec = {
-                    (slideInVertically(tween(450)) { it / 6 } + fadeIn(tween(450))) togetherWith
-                        (slideOutVertically(tween(300)) { -it / 8 } + fadeOut(tween(250)))
+                    val d = if (targetState > initialState) -1 else 1
+                    (slideInHorizontally(tween(480, easing = androidx.compose.animation.core.FastOutSlowInEasing)) { d * it / 3 } + fadeIn(tween(420))) togetherWith
+                        (slideOutHorizontally(tween(380, easing = androidx.compose.animation.core.FastOutSlowInEasing)) { -d * it / 3 } + fadeOut(tween(220)))
                 },
                 label = "setup",
             ) { s ->

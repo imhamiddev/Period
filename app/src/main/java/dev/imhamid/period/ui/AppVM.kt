@@ -30,7 +30,6 @@ class AppVM(private val app: Application) : AndroidViewModel(app) {
     var booting by mutableStateOf(true)
     var signedIn by mutableStateOf(store.signedIn)
     var introSeen by mutableStateOf(store.introSeen)
-    var authStartsAsSignUp by mutableStateOf(true)
     var snap by mutableStateOf<Snapshot?>(null)
     var busy by mutableStateOf(false)
     var error by mutableStateOf<String?>(null)
@@ -83,18 +82,27 @@ class AppVM(private val app: Application) : AndroidViewModel(app) {
     fun refresh() = viewModelScope.launch { load() }
 
     // ------------------------------------------------------------------ intro / auth
-    fun finishIntro(signUp: Boolean) {
+    fun finishIntro() {
         store.introSeen = true
         introSeen = true
-        authStartsAsSignUp = signUp
     }
 
-    fun submitAuth(signUp: Boolean, email: String, password: String) {
+    fun submitAuth(email: String, password: String) {
         if (email.isBlank() || password.isBlank()) { error = "ایمیل و رمز رو وارد کن"; return }
         viewModelScope.launch {
             busy = true
             try {
-                if (signUp) repo.signUp(email.trim(), password) else repo.signIn(email.trim(), password)
+                try {
+                    repo.signIn(email.trim(), password)
+                } catch (e: ApiException) {
+                    if (e.message != dev.imhamid.period.data.ERR_INVALID) throw e
+                    // unknown email -> create the account; known email -> it was a wrong password
+                    try {
+                        repo.signUp(email.trim(), password)
+                    } catch (e2: ApiException) {
+                        if (e2.message == dev.imhamid.period.data.ERR_EXISTS) throw ApiException(400, "رمز عبور اشتباهه") else throw e2
+                    }
+                }
                 signedIn = true
                 load()
                 WorkManager.getInstance(app).enqueue(OneTimeWorkRequestBuilder<SyncWorker>().build())

@@ -12,6 +12,9 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.util.concurrent.TimeUnit
 
+const val ERR_INVALID = "ایمیل یا رمز عبور اشتباهه"
+const val ERR_EXISTS = "این ایمیل قبلاً ثبت‌نام کرده"
+
 class ApiException(val code: Int, message: String) : Exception(message)
 
 object Api {
@@ -57,8 +60,8 @@ object Api {
     }.getOrNull() ?: s
 
     private fun friendly(m: String): String = when {
-        m.contains("Invalid login credentials", true) -> "ایمیل یا رمز عبور اشتباهه"
-        m.contains("already registered", true) -> "این ایمیل قبلاً ثبت‌نام کرده"
+        m.contains("Invalid login credentials", true) -> ERR_INVALID
+        m.contains("already registered", true) -> ERR_EXISTS
         m.contains("at least", true) && m.contains("password", true) -> "رمز عبور باید حداقل ۶ کاراکتر باشه"
         m.contains("valid email", true) || m.contains("invalid format", true) -> "ایمیل معتبر نیست"
         m.contains("invalid_code") -> "این کد وجود نداره"

@@ -15,6 +15,8 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
@@ -178,14 +180,25 @@ fun PrimaryButton(
         BtnKind.Light, BtnKind.Lime -> C.Ink
         BtnKind.Glass -> Color.White
     }
+    val src = remember { MutableInteractionSource() }
+    val pressed by src.collectIsPressedAsState()
+    val haptic = LocalHapticFeedback.current
+    val scale by animateFloatAsState(if (pressed) 0.95f else 1f, spring(dampingRatio = 0.45f, stiffness = 420f), label = "bs")
+    val glow by animateFloatAsState(if (pressed) 0.16f else 0f, tween(140), label = "bg")
+    val glowColor = if (kind == BtnKind.Light || kind == BtnKind.Lime) Color.Black else Color.White
     Box(
         modifier
+            .graphicsLayer { scaleX = scale; scaleY = scale }
             .fillMaxWidth()
             .height(58.dp)
             .clip(RoundedCornerShape(29.dp))
             .background(bg)
             .then(if (kind == BtnKind.Glass) Modifier.border(1.dp, Color.White.copy(alpha = 0.3f), RoundedCornerShape(29.dp)) else Modifier)
-            .pressable(enabled = enabled && !loading, onClick = onClick),
+            .clickable(interactionSource = src, indication = null, enabled = enabled && !loading) {
+                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                onClick()
+            }
+            .drawBehind { drawRect(glowColor.copy(alpha = glow)) },
         contentAlignment = Alignment.Center,
     ) {
         AnimatedContent(loading, transitionSpec = { fadeIn(tween(200)) togetherWith fadeOut(tween(150)) }, label = "btn") { l ->
@@ -240,6 +253,17 @@ fun Field(
                     .padding(horizontal = 18.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                if (password) {
+                    AnimatedContent(
+                        show,
+                        modifier = Modifier.pressable { show = !show },
+                        transitionSpec = { (fadeIn(tween(180)) + scaleIn(spring(0.5f), 0.5f)) togetherWith (fadeOut(tween(120)) + scaleOut(targetScale = 0.5f)) },
+                        label = "eye",
+                    ) { sh ->
+                        Icon(if (sh) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility, contentDescription = null, tint = C.Muted, modifier = Modifier.size(22.dp))
+                    }
+                }
+                if (password) androidx.compose.foundation.layout.Spacer(Modifier.size(12.dp))
                 BasicTextField(
                     value = value,
                     onValueChange = onValue,
@@ -254,14 +278,6 @@ fun Field(
                     keyboardOptions = KeyboardOptions(keyboardType = if (password) KeyboardType.Password else keyboardType, imeAction = imeAction),
                     keyboardActions = KeyboardActions(onDone = { onDone() }, onGo = { onDone() }),
                 )
-                if (password) {
-                    Icon(
-                        if (show) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
-                        contentDescription = null,
-                        tint = C.Muted,
-                        modifier = Modifier.size(22.dp).pressable { show = !show },
-                    )
-                }
             }
         }
     }

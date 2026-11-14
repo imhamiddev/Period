@@ -17,7 +17,9 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
@@ -101,7 +103,11 @@ private fun Root(vm: AppVM) {
                 AnimatedContent(
                     targetState = route,
                     transitionSpec = {
-                        (fadeIn(tween(450)) + scaleIn(tween(450), initialScale = 0.97f)) togetherWith fadeOut(tween(250))
+                        val d = if (targetState.ordinal >= initialState.ordinal) -1 else 1
+                        val ease = androidx.compose.animation.core.FastOutSlowInEasing
+                        (fadeIn(tween(420, delayMillis = 90)) + scaleIn(tween(520, easing = ease), initialScale = 0.96f) +
+                            slideInHorizontally(tween(520, easing = ease)) { d * it / 5 }) togetherWith
+                            (fadeOut(tween(220)) + slideOutHorizontally(tween(420, easing = ease)) { -d * it / 8 })
                     },
                     label = "route",
                 ) { r ->

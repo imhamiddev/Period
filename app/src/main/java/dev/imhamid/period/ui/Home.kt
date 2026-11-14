@@ -4,6 +4,11 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.expandHorizontally
+import androidx.compose.animation.shrinkHorizontally
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -101,8 +106,8 @@ fun HomeScreen(vm: AppVM) {
             tab,
             transitionSpec = {
                 val dir = if (targetState > initialState) -1 else 1
-                (fadeIn(tween(350)) + slideInHorizontally(tween(400)) { dir * it / 10 }) togetherWith
-                    (fadeOut(tween(200)) + slideOutHorizontally(tween(300)) { -dir * it / 10 })
+                (fadeIn(tween(380, delayMillis = 60)) + slideInHorizontally(tween(460, easing = androidx.compose.animation.core.FastOutSlowInEasing)) { dir * it / 6 } + androidx.compose.animation.scaleIn(tween(460), 0.97f)) togetherWith
+                    (fadeOut(tween(180)) + slideOutHorizontally(tween(340)) { -dir * it / 8 })
             },
             label = "tabs",
         ) { t ->
@@ -119,25 +124,44 @@ fun HomeScreen(vm: AppVM) {
 @Composable
 private fun BottomNav(selected: Int, onSelect: (Int) -> Unit, modifier: Modifier) {
     val items = listOf(Icons.Rounded.Home to "خانه", Icons.Rounded.CalendarMonth to "تقویم", Icons.Rounded.Settings to "تنظیمات")
+    var shown by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { delay(300); shown = true }
+    val enter by animateFloatAsState(if (shown) 1f else 0f, spring(0.62f, 220f), label = "naventer")
     Row(
         modifier.navigationBarsPadding().padding(bottom = 14.dp)
-            .clip(RoundedCornerShape(34.dp)).background(C.Ink.copy(alpha = 0.94f)).padding(6.dp)
-            .animateContentSize(spring(0.8f)),
+            .graphicsLayer { translationY = (1f - enter) * 170.dp.toPx(); alpha = enter.coerceIn(0f, 1f) }
+            .clip(RoundedCornerShape(34.dp)).background(C.Ink.copy(alpha = 0.94f)).padding(6.dp),
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         items.forEachIndexed { i, (icon, label) ->
             val sel = i == selected
-            val bg by animateColorAsState(if (sel) C.Lime else Color.Transparent, tween(300), label = "nb")
-            val fg by animateColorAsState(if (sel) C.Deep else Color.White.copy(alpha = 0.75f), tween(300), label = "nf")
+            val bg by animateColorAsState(if (sel) C.Lime else Color.Transparent, tween(320), label = "nb")
+            val fg by animateColorAsState(if (sel) C.Deep else Color.White.copy(alpha = 0.75f), tween(320), label = "nf")
+            val iconScale by animateFloatAsState(if (sel) 1.15f else 1f, spring(0.3f, 380f), label = "is")
+            val rot = remember { Animatable(0f) }
+            LaunchedEffect(sel) {
+                if (sel && shown) { rot.snapTo(-22f); rot.animateTo(0f, spring(0.3f, 260f)) }
+            }
             Row(
-                Modifier.clip(RoundedCornerShape(28.dp)).background(bg).pressable { onSelect(i) }
-                    .padding(horizontal = if (sel) 18.dp else 16.dp, vertical = 12.dp),
+                Modifier.animateContentSize(spring(0.78f, 420f))
+                    .clip(RoundedCornerShape(28.dp)).background(bg)
+                    .pressable { onSelect(i) }
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(icon, null, tint = fg, modifier = Modifier.size(22.dp))
-                if (sel) {
-                    Spacer(Modifier.size(8.dp))
-                    Txt(label, 14.sp, FontWeight.Medium, fg)
+                Icon(
+                    icon, null, tint = fg,
+                    modifier = Modifier.size(22.dp).graphicsLayer { scaleX = iconScale; scaleY = iconScale; rotationZ = rot.value },
+                )
+                AnimatedVisibility(
+                    sel,
+                    enter = fadeIn(tween(260, delayMillis = 80)) + expandHorizontally(spring(0.8f, 420f)),
+                    exit = fadeOut(tween(120)) + shrinkHorizontally(tween(220)),
+                ) {
+                    Row {
+                        Spacer(Modifier.size(8.dp))
+                        Txt(label, 14.sp, FontWeight.Medium, fg)
+                    }
                 }
             }
         }
