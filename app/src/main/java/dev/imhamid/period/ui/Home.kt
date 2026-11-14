@@ -347,7 +347,7 @@ private fun HomeTab(vm: AppVM, onOpenDay: (LocalDate) -> Unit) {
                                 Column {
                                     Txt("امروز چه کار کنم؟", 14.sp, color = C.Muted)
                                     Spacer(Modifier.height(6.dp))
-                                    Txt(Fa.partnerTip(ov?.phase, ownerName), 16.sp)
+                                    Txt(Fa.partnerTip(ov?.phase, ownerName, Fa.isPartnerLabel(s.activePair?.let { vm.labelOf(it) })), 16.sp)
                                 }
                             }
                         } else if (ov?.hasData == true) {
@@ -426,7 +426,9 @@ private fun MoodCard(vm: AppVM, today: LocalDate, isHer: Boolean, name: String, 
                         }
                     }
                 }
-                if (!dl?.symptoms.isNullOrEmpty()) Txt(dl!!.symptoms.joinToString("، ") { Fa.symptomName(it) }, 13.sp, color = C.Muted)
+                val shown = listOfNotNull(Fa.flowOf(dl!!.symptoms)?.let { "شدت: ${Fa.flowName(it)}" }) +
+                    Fa.realSymptoms(dl.symptoms).map { Fa.symptomName(it) }
+                if (shown.isNotEmpty()) Txt(shown.joinToString("، "), 13.sp, color = C.Muted)
             } else {
                 Txt(if (isHer) "هنوز ثبت نکردی؛ بزن تا بگی امروز چه خبره 😄" else "هنوز چیزی ثبت نشده.", 15.sp, color = C.Muted)
             }
@@ -443,6 +445,8 @@ private fun MessagesCard(vm: AppVM) {
     var sent by remember { mutableStateOf<String?>(null) }
     var custom by rememberSaveable { mutableStateOf("") }
     var editSaved by remember { mutableStateOf(false) }
+    var target by remember { mutableStateOf<String?>(null) }
+    val activePairs = s.pairs.filter { it.status == "active" }
     LaunchedEffect(sent) { if (sent != null) { delay(1700); sent = null } }
     Card {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -454,17 +458,26 @@ private fun MessagesCard(vm: AppVM) {
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Column(Modifier.weight(1f)) {
+                        val from = s.pairs.firstOrNull { it.partnerId == m.fromId || it.herId == m.fromId }?.let { vm.personTitle(it) }
+                        if (from != null) Txt(from, 11.sp, FontWeight.Medium, C.OnSoft)
                         Txt(m.body, 15.sp)
                         Txt(Fa.ago(m.createdAt), 11.sp, color = C.Muted)
                     }
                     if (m.readAt == null) Box(Modifier.size(8.dp).clip(CircleShape).background(C.Green))
                 }
             }
+            if (isHer && activePairs.size > 1) {
+                Txt("به کی پیام بدم؟", 14.sp, color = C.Muted)
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    item { Chip("همه", target == null, { target = null }) }
+                    items(activePairs) { p -> Chip(vm.personTitle(p), target == p.id, { target = p.id }) }
+                }
+            }
             Txt(if (isHer) "به پارتنرت خبر بده" else "یه پیام مهربون بفرست", 14.sp, color = C.Muted)
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(if (isHer) Fa.herQuick else Fa.partnerQuick) { txt ->
                     Chip(if (sent == txt) "ارسال شد ✓" else txt, sent == txt, {
-                        if (sent == null) { sent = txt; vm.sendMessage(txt) }
+                        if (sent == null) { sent = txt; vm.sendMessage(txt, target) }
                     })
                 }
             }
@@ -482,7 +495,7 @@ private fun MessagesCard(vm: AppVM) {
                     items(vm.savedMessages) { txt ->
                         Chip(if (editSaved) "✕  $txt" else if (sent == txt) "ارسال شد ✓" else txt, sent == txt, {
                             if (editSaved) vm.deleteSavedMessage(txt)
-                            else if (sent == null) { sent = txt; vm.sendMessage(txt) }
+                            else if (sent == null) { sent = txt; vm.sendMessage(txt, target) }
                         })
                     }
                 }
@@ -490,11 +503,11 @@ private fun MessagesCard(vm: AppVM) {
 
             // ---- free text
             Field(custom, { custom = it.take(200) }, "پیام دلخواه", imeAction = androidx.compose.ui.text.input.ImeAction.Done, onDone = {
-                if (custom.isNotBlank()) { vm.sendMessage(custom.trim()); custom = "" }
+                if (custom.isNotBlank()) { vm.sendMessage(custom.trim(), target); custom = "" }
             })
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Box(Modifier.weight(1f)) {
-                    PrimaryButton("ارسال", { vm.sendMessage(custom.trim()); custom = "" }, enabled = custom.isNotBlank())
+                    PrimaryButton("ارسال", { vm.sendMessage(custom.trim(), target); custom = "" }, enabled = custom.isNotBlank())
                 }
                 Box(Modifier.weight(1f)) {
                     PrimaryButton("ذخیره برای بعد", { vm.saveMessage(custom); custom = "" }, kind = BtnKind.Lime, enabled = custom.isNotBlank())
@@ -566,8 +579,8 @@ private fun ShareCard(vm: AppVM) {
     LaunchedEffect(copied) { if (copied) { delay(1600); copied = false } }
     Card {
         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            Txt("اشتراک با پارتنر", 14.sp, color = C.Muted)
-            Txt("کد زیر رو بده به پارتنرت تا وارد برنامه‌ش کنه. بعدش خودت تایید می‌کنی.", 14.sp, color = C.Muted)
+            Txt("اشتراک چرخه", 14.sp, color = C.Muted)
+            Txt("کد زیر رو بده به هر کسی که می‌خوای چرخه‌ت رو ببینه (پارتنر، مادر، خواهر…). بعدش خودت تایید می‌کنی و نقشش رو تو تنظیمات می‌نویسی.", 14.sp, color = C.Muted)
             Row(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(C.LimeSoft)
                     .pressable {
@@ -583,8 +596,7 @@ private fun ShareCard(vm: AppVM) {
                 }
             }
             s.pairs.forEach { p ->
-                val partner = s.others[p.partnerId]
-                PairRowItem(vm, p, partner?.name ?: "پارتنر")
+                PairRowItem(vm, p, vm.personTitle(p))
             }
         }
     }

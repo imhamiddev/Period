@@ -102,6 +102,21 @@ fun DaySheet(vm: AppVM, day: LocalDate, onClose: () -> Unit) {
             }
         }
 
+        // ---- bleeding intensity
+        val flow = Fa.flowOf(dl?.symptoms.orEmpty())
+        if ((isHer && logged) || (!isHer && flow != null)) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Txt("شدت خونریزی", 14.sp, color = C.Muted)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Fa.flows.forEach { (id, label) ->
+                        if (isHer || id == flow) {
+                            Chip(label, id == flow, { if (isHer) vm.setFlow(day, if (id == flow) null else id) })
+                        }
+                    }
+                }
+            }
+        }
+
         // ---- mood
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Txt("حال‌وهوا", 14.sp, color = C.Muted)
@@ -142,7 +157,7 @@ fun DaySheet(vm: AppVM, day: LocalDate, onClose: () -> Unit) {
                     }
                 }
             }
-            if (!isHer && dl?.symptoms.isNullOrEmpty()) Txt("علامتی ثبت نشده", 13.sp, color = C.Muted)
+            if (!isHer && Fa.realSymptoms(dl?.symptoms.orEmpty()).isEmpty()) Txt("علامتی ثبت نشده", 13.sp, color = C.Muted)
         }
 
         // ---- note

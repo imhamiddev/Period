@@ -27,6 +27,23 @@ class SessionStore(ctx: Context) {
         get() = p.getInt("theme", 0)
         set(v) = p.edit().putInt("theme", v).apply()
 
+    var accent: Int
+        get() = p.getInt("accent", 0)
+        set(v) = p.edit().putInt("accent", v).apply()
+
+    /** Instant message alerts via a small foreground service (device-local). */
+    var liveNotify: Boolean
+        get() = p.getBoolean("live", false)
+        set(v) = p.edit().putBoolean("live", v).apply()
+
+    /** Labels (mother, sister, …) she gave her connections; kept here as a fallback to the server value. */
+    var pairLabels: Map<String, String>
+        get() = (p.getString("pair_labels", "") ?: "").split('\u001F').mapNotNull {
+            val i = it.indexOf('=')
+            if (i > 0) it.substring(0, i) to it.substring(i + 1) else null
+        }.toMap()
+        set(v) = p.edit().putString("pair_labels", v.entries.joinToString("\u001F") { "${it.key}=${it.value}" }).apply()
+
     /** User-written quick messages (kept on this device). */
     var savedMessages: List<String>
         get() = (p.getString("saved_msgs", "") ?: "").split('\u001F').filter { it.isNotBlank() }
@@ -46,7 +63,8 @@ class SessionStore(ctx: Context) {
         val intro = introSeen
         val lock = lockEnabled
         val theme = themeMode
-        p.edit().clear().putBoolean("intro", intro).putBoolean("lock", lock).putInt("theme", theme).apply()
+        val acc = accent
+        p.edit().clear().putBoolean("intro", intro).putBoolean("lock", lock).putInt("theme", theme).putInt("accent", acc).apply()
     }
 
     // ---- notification de-duplication

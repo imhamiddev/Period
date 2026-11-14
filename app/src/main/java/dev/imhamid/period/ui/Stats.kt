@@ -171,7 +171,7 @@ fun StatsTab(vm: AppVM) {
                     val bleed = engine.bleedingSet.count { inMonth(it) }
                     val starts = engine.periods.count { inMonth(it.start) }
                     val moods = monthDays.mapNotNull { it.mood }
-                    val topSym = monthDays.flatMap { it.symptoms }.groupingBy { it }.eachCount().maxByOrNull { it.value }
+                    val topSym = monthDays.flatMap { Fa.realSymptoms(it.symptoms) }.groupingBy { it }.eachCount().maxByOrNull { it.value }
                     val notesN = s.notes.values.count { inMonth(LocalDate.parse(it.day)) }
                     val pmsDays = if (upTo.isBefore(first)) 0 else (0..ChronoUnit.DAYS.between(first, upTo).toInt()).count { engine.phaseOn(first.plusDays(it.toLong())) == Phase.PMS }
                     Card {
@@ -289,7 +289,7 @@ fun StatsTab(vm: AppVM) {
 
                 // ---- symptoms
                 val recent = s.days.values.filter { LocalDate.parse(it.day) >= today.minusDays(120) }
-                val counts = recent.flatMap { it.symptoms }.groupingBy { it }.eachCount().entries.sortedByDescending { it.value }.take(6)
+                val counts = recent.flatMap { Fa.realSymptoms(it.symptoms) }.groupingBy { it }.eachCount().entries.sortedByDescending { it.value }.take(6)
                 if (counts.isNotEmpty()) Reveal(6) {
                     Card {
                         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -297,13 +297,28 @@ fun StatsTab(vm: AppVM) {
                             val top = counts.first().value.toFloat()
                             counts.forEach { HBar(Fa.symptomName(it.key), it.value / top, Fa.n(it.value), C.Amber) }
                             val pms = recent.filter { engine.phaseOn(LocalDate.parse(it.day)) == Phase.PMS }
-                                .flatMap { it.symptoms }.groupingBy { it }.eachCount().maxByOrNull { it.value }
+                                .flatMap { Fa.realSymptoms(it.symptoms) }.groupingBy { it }.eachCount().maxByOrNull { it.value }
                             if (pms != null && pms.value >= 2) {
                                 Txt(
                                     if (isHer) "در روزهای PMS بیشتر «${Fa.symptomName(pms.key)}» ثبت کردی."
                                     else "در روزهای PMS بیشتر «${Fa.symptomName(pms.key)}» برای $ownerName ثبت شده.",
                                     13.sp, FontWeight.Medium, C.Green,
                                 )
+                            }
+                        }
+                    }
+                }
+
+                // ---- bleeding intensity
+                val flowCounts = s.days.values.mapNotNull { Fa.flowOf(it.symptoms) }.groupingBy { it }.eachCount()
+                if (flowCounts.isNotEmpty()) Reveal(6) {
+                    Card {
+                        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                            Txt("شدت خونریزی", 14.sp, color = C.Muted)
+                            val top = (flowCounts.values.maxOrNull() ?: 1).toFloat()
+                            Fa.flows.forEach { (id, label) ->
+                                val c = flowCounts[id] ?: 0
+                                HBar(label, c / top, Fa.n(c), C.Coral)
                             }
                         }
                     }

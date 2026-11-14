@@ -126,7 +126,7 @@ fun Aurora(modifier: Modifier = Modifier, content: @Composable BoxScope.() -> Un
     val b by t.animateFloat(0f, 1f, infiniteRepeatable(tween(17000, easing = LinearEasing), RepeatMode.Reverse), label = "b")
     Box(
         modifier
-            .background(Brush.verticalGradient(listOf(Color(0xFF8ED65A), C.Green, C.GreenMid, C.Deep)))
+            .background(Brush.verticalGradient(listOf(C.AuroraTop, C.Green, C.GreenMid, C.Deep)))
             .drawBehind {
                 val w = size.width
                 val h = size.height
@@ -138,7 +138,7 @@ fun Aurora(modifier: Modifier = Modifier, content: @Composable BoxScope.() -> Un
                 drawRect(Brush.radialGradient(listOf(C.Deep.copy(alpha = 0.85f), Color.Transparent), c2, r2))
                 val r3 = w * 0.7f
                 val c3 = Offset(w * (0.2f + 0.3f * a), h * (0.35f + 0.1f * b))
-                drawRect(Brush.radialGradient(listOf(Color(0xFF45B24A).copy(alpha = 0.55f), Color.Transparent), c3, r3))
+                drawRect(Brush.radialGradient(listOf(C.AuroraMid.copy(alpha = 0.55f), Color.Transparent), c3, r3))
             },
         content = content,
     )

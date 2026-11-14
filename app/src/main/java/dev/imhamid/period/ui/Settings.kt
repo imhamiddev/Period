@@ -19,12 +19,15 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Logout
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.ChevronLeft
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Close
@@ -131,7 +134,7 @@ internal fun SettingsTab(vm: AppVM) {
                         SettingsDivider()
                         s.pairs.forEachIndexed { i, p ->
                             if (i > 0) SettingsDivider()
-                            PairLine(vm, p, s.others[p.partnerId]?.name ?: "پارتنر")
+                            PairLine(vm, p, s.others[p.partnerId]?.name ?: "پارتنر", editable = true)
                         }
                     } else {
                         SettingsDivider()
@@ -142,7 +145,7 @@ internal fun SettingsTab(vm: AppVM) {
                 SettingsSection(Icons.Rounded.Favorite, "اتصال", "ارتباط با ثبت‌کننده‌ی چرخه") {
                     s.pairs.forEachIndexed { i, p ->
                         if (i > 0) SettingsDivider()
-                        PairLine(vm, p, s.others[p.herId]?.name ?: "درخواست ارسال‌شده")
+                        PairLine(vm, p, s.others[p.herId]?.name ?: "درخواست ارسال‌شده", editable = false)
                     }
                 }
             }
@@ -151,6 +154,8 @@ internal fun SettingsTab(vm: AppVM) {
             Reveal(4) {
                 SettingsSection(Icons.Rounded.Notifications, "نوتیفیکیشن", if (isHer) "یادآوری PMS و پریود" else "خبر PMS و پریود پارتنرت") {
                     SettingSwitch("فعال بودن اعلان‌ها", "کلید اصلی همه‌ی نوتیف‌ها", me.notifyEnabled) { v -> vm.patch { put("notify_enabled", v) } }
+                    SettingsDivider()
+                    SettingSwitch("اعلان فوری پیام‌ها", "پیام‌ها تا حدود ۲۰ ثانیه بعد می‌رسن؛ یه اعلان کوچیک ثابت نشون می‌ده (فقط روی همین گوشی)", vm.liveNotify) { v -> vm.setLiveNotify(v) }
                     androidx.compose.animation.AnimatedVisibility(me.notifyEnabled) {
                         Column {
                             SettingsDivider()
@@ -180,6 +185,23 @@ internal fun SettingsTab(vm: AppVM) {
                                 Chip(t, vm.themeMode == i, { vm.setTheme(i) })
                             }
                         }
+                    }
+                    SettingsDivider()
+                    Column(Modifier.padding(horizontal = 18.dp, vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Txt("رنگ برنامه", 16.sp, FontWeight.Medium)
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Accents.forEachIndexed { i, a ->
+                                Box(
+                                    Modifier.size(40.dp).clip(CircleShape).background(a.green)
+                                        .then(if (vm.accent == i) Modifier.border(3.dp, C.Text, CircleShape) else Modifier)
+                                        .pressable { vm.setAccent(i) },
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    if (vm.accent == i) Icon(Icons.Rounded.Check, null, tint = Color.White, modifier = Modifier.size(20.dp))
+                                }
+                            }
+                        }
+                        Txt(Accents[vm.accent.coerceIn(0, Accents.lastIndex)].name, 12.sp, color = C.Muted)
                     }
                 }
             }
@@ -253,18 +275,50 @@ private fun RoleBadge(text: String) {
 }
 
 @Composable
-private fun PairLine(vm: AppVM, p: PairRow, name: String) {
+private fun PairLine(vm: AppVM, p: PairRow, name: String, editable: Boolean) {
     val pending = p.status == "pending"
-    Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(38.dp).clip(CircleShape).background(C.Lime), contentAlignment = Alignment.Center) {
-            Txt(name.take(1), 15.sp, FontWeight.Bold, C.Deep)
+    val label = vm.labelOf(p)
+    var open by remember(p.id) { mutableStateOf(false) }
+    var text by remember(p.id, label) { mutableStateOf(label.orEmpty()) }
+    Column(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(38.dp).clip(CircleShape).background(C.Lime), contentAlignment = Alignment.Center) {
+                Txt(name.take(1), 15.sp, FontWeight.Bold, C.Deep)
+            }
+            Spacer(Modifier.size(12.dp))
+            Column(Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Txt(name, 16.sp, FontWeight.Medium)
+                    if (label != null) {
+                        Spacer(Modifier.size(8.dp))
+                        RoleBadge(label)
+                    }
+                }
+                Txt(if (pending) "منتظر تایید" else "وصل است", 12.sp, color = if (pending) C.Amber else C.Green)
+            }
+            if (editable) {
+                Txt(
+                    if (open) "بستن" else "نقش", 13.sp, FontWeight.Medium, C.Green,
+                    Modifier.pressable { open = !open }.padding(8.dp),
+                )
+            }
+            RoundIcon(Icons.Rounded.Close, C.Paper, C.Muted) { vm.removePair(p.id) }
         }
-        Spacer(Modifier.size(12.dp))
-        Column(Modifier.weight(1f)) {
-            Txt(name, 16.sp, FontWeight.Medium)
-            Txt(if (pending) "منتظر تایید" else "وصل است", 12.sp, color = if (pending) C.Amber else C.Green)
+        if (!editable && label != null) Txt("نقش تو برای ${vm.snap?.others?.get(p.herId)?.name ?: "اون"}: $label", 12.sp, color = C.Muted)
+        if (editable) {
+            androidx.compose.animation.AnimatedVisibility(open) {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Txt("این آدم چه نقشی تو زندگی‌ت داره؟", 13.sp, color = C.Muted)
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(Fa.roles) { r ->
+                            Chip(r, label == r, { vm.setPairLabel(p.id, r); open = false })
+                        }
+                    }
+                    Field(text, { text = it.take(20) }, "یا خودت بنویس (مثلاً عمه، همکار…)", imeAction = androidx.compose.ui.text.input.ImeAction.Done, onDone = { vm.setPairLabel(p.id, text); open = false })
+                    PrimaryButton("ذخیره‌ی نقش", { vm.setPairLabel(p.id, text); open = false }, kind = BtnKind.Lime)
+                }
+            }
         }
-        RoundIcon(Icons.Rounded.Close, C.Paper, C.Muted) { vm.removePair(p.id) }
     }
 }
 

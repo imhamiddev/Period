@@ -2,6 +2,7 @@ package dev.imhamid.period.ui
 
 import android.app.Application
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
@@ -13,6 +14,8 @@ import dev.imhamid.period.data.ApiException
 import dev.imhamid.period.data.Repo
 import dev.imhamid.period.data.SessionStore
 import dev.imhamid.period.data.DayLog
+import dev.imhamid.period.data.PairRow
+import dev.imhamid.period.notify.LiveService
 import dev.imhamid.period.data.Note
 import dev.imhamid.period.data.Snapshot
 import kotlinx.coroutines.Job
@@ -41,6 +44,9 @@ class AppVM(private val app: Application) : AndroidViewModel(app) {
     var lockEnabled by mutableStateOf(store.lockEnabled)
     var themeMode by mutableStateOf(store.themeMode)
     var savedMessages by mutableStateOf(store.savedMessages)
+    var accent by mutableIntStateOf(store.accent)
+    var pairLabels by mutableStateOf(store.pairLabels)
+    var liveNotify by mutableStateOf(store.liveNotify)
 
     private val dayJobs = mutableMapOf<LocalDate, Job>()
     private val noteJobs = mutableMapOf<LocalDate, Job>()
@@ -226,15 +232,60 @@ class AppVM(private val app: Application) : AndroidViewModel(app) {
     }
 
     // ------------------------------------------------------------------ quick messages
-    fun sendMessage(body: String) {
+    /** Her: [pairId] = one person, null = everyone connected. Partner: always to her. */
+    fun sendMessage(body: String, pairId: String? = null) {
         val s = snap ?: return
         if (body.isBlank()) return
-        val pair = s.activePair
-        if (pair == null) { error = "هنوز به هم وصل نیستید"; return }
-        val to = if (s.me.role == "her") pair.partnerId else pair.herId
+        val isHer = s.me.role == "her"
+        val targets = if (isHer) s.pairs.filter { it.status == "active" && (pairId == null || it.id == pairId) } else listOfNotNull(s.activePair)
+        if (targets.isEmpty()) { error = "هنوز به هم وصل نیستید"; return }
         viewModelScope.launch {
-            try { repo.sendMessage(pair.id, to, body); load() } catch (e: Exception) { fail(e) }
+            try {
+                targets.forEach { pr -> repo.sendMessage(pr.id, if (isHer) pr.partnerId else pr.herId, body) }
+                load()
+            } catch (e: Exception) { fail(e) }
         }
+    }
+
+    // ------------------------------------------------------------------ roles / appearance / live alerts
+    fun labelOf(p: PairRow): String? = p.label?.takeIf { it.isNotBlank() } ?: pairLabels[p.id]?.takeIf { it.isNotBlank() }
+
+    /** "Name (role)" for a connection, from the point of view of the current user. */
+    fun personTitle(p: PairRow): String {
+        val s = snap ?: return ""
+        val otherId = if (s.me.role == "her") p.partnerId else p.herId
+        val n = s.others[otherId]?.name?.takeIf { it.isNotBlank() } ?: "پارتنر"
+        val l = labelOf(p)
+        return if (l != null && s.me.role == "her") "$n ($l)" else n
+    }
+
+    fun setPairLabel(pairId: String, label: String) {
+        val t = label.trim().take(20)
+        val next = if (t.isEmpty()) store.pairLabels - pairId else store.pairLabels + (pairId to t)
+        store.pairLabels = next
+        pairLabels = next
+        viewModelScope.launch {
+            runCatching { repo.setPairLabel(pairId, t) } // fine if the optional migration was not run
+            load()
+        }
+    }
+
+    fun setAccent(i: Int) {
+        store.accent = i
+        accent = i
+        C.accent = i
+    }
+
+    fun setLiveNotify(v: Boolean) {
+        store.liveNotify = v
+        liveNotify = v
+        if (v) LiveService.start(app) else LiveService.stop(app)
+    }
+
+    fun setFlow(day: LocalDate, flow: String?) {
+        val dl = snap?.days?.get(day)
+        val rest = dl?.symptoms.orEmpty().filterNot { it.startsWith("flow_") }
+        saveDay(day, dl?.mood, dl?.energy, if (flow == null) rest else rest + flow)
     }
 
     fun markRead() {
