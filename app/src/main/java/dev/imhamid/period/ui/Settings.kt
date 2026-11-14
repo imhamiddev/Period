@@ -155,7 +155,7 @@ internal fun SettingsTab(vm: AppVM) {
                 SettingsSection(Icons.Rounded.Notifications, "نوتیفیکیشن", if (isHer) "یادآوری PMS و پریود" else "خبر PMS و پریود پارتنرت") {
                     SettingSwitch("فعال بودن اعلان‌ها", "کلید اصلی همه‌ی نوتیف‌ها", me.notifyEnabled) { v -> vm.patch { put("notify_enabled", v) } }
                     SettingsDivider()
-                    SettingSwitch("اعلان فوری پیام‌ها", "پیام‌ها تا حدود ۲۰ ثانیه بعد می‌رسن؛ یه اعلان کوچیک ثابت نشون می‌ده (فقط روی همین گوشی)", vm.liveNotify) { v -> vm.setLiveNotify(v) }
+                    SettingSwitch("اعلان فوری پیام‌ها", "پیام‌ها تا حدود ۲۰ ثانیه بعد می‌رسن؛ یه اعلان کوچیک ثابت نشون می‌ده (فقط روی همین گوشی)", vm.liveNotify) { v -> vm.chooseLiveNotify(v) }
                     androidx.compose.animation.AnimatedVisibility(me.notifyEnabled) {
                         Column {
                             SettingsDivider()
@@ -194,7 +194,7 @@ internal fun SettingsTab(vm: AppVM) {
                                 Box(
                                     Modifier.size(40.dp).clip(CircleShape).background(a.green)
                                         .then(if (vm.accent == i) Modifier.border(3.dp, C.Text, CircleShape) else Modifier)
-                                        .pressable { vm.setAccent(i) },
+                                        .pressable { vm.chooseAccent(i) },
                                     contentAlignment = Alignment.Center,
                                 ) {
                                     if (vm.accent == i) Icon(Icons.Rounded.Check, null, tint = Color.White, modifier = Modifier.size(20.dp))

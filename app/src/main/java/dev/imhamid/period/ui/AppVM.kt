@@ -270,13 +270,13 @@ class AppVM(private val app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun setAccent(i: Int) {
+    fun chooseAccent(i: Int) {
         store.accent = i
         accent = i
         C.accent = i
     }
 
-    fun setLiveNotify(v: Boolean) {
+    fun chooseLiveNotify(v: Boolean) {
         store.liveNotify = v
         liveNotify = v
         if (v) LiveService.start(app) else LiveService.stop(app)
