@@ -64,7 +64,7 @@ object Fa {
         null -> "اطلاعات کافی نیست"
     }
 
-    private fun pick(vararg v: String) = v.random()
+    private fun <T> pick(vararg v: T): T = v.toList().random()
 
     fun partnerTip(p: Phase?, name: String): String = when (p) {
         Phase.MENSTRUAL -> pick(
