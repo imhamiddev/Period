@@ -32,6 +32,8 @@ data class PairRow(
     @SerialName("her_id") val herId: String,
     @SerialName("partner_id") val partnerId: String,
     val status: String,
+    /** Role she gave this connection (partner, mother, sister…). */
+    val label: String? = null,
 )
 
 @Serializable

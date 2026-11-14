@@ -66,7 +66,26 @@ object Fa {
 
     private fun <T> pick(vararg v: T): T = v.toList().random()
 
-    fun partnerTip(p: Phase?, name: String): String = when (p) {
+    // ---- roles & flow intensity
+    val roles = listOf("پارتنر", "مادر", "خواهر", "دوست", "دیگر")
+    fun isPartnerLabel(label: String?): Boolean =
+        label.isNullOrBlank() || label.trim() in listOf("پارتنر", "همسر", "شوهر", "نامزد", "عشق")
+
+    val flows = listOf("flow_spot" to "لکه‌بینی", "flow_light" to "کم", "flow_medium" to "متوسط", "flow_heavy" to "زیاد")
+    fun flowOf(ids: List<String>): String? = ids.firstOrNull { it.startsWith("flow_") }
+    fun flowName(id: String): String = flows.firstOrNull { it.first == id }?.second ?: id
+    fun realSymptoms(ids: List<String>): List<String> = ids.filterNot { it.startsWith("flow_") }
+
+    private fun supportTip(p: Phase?, name: String): String = when (p) {
+        Phase.MENSTRUAL -> "$name این روزا ممکنه خسته باشه؛ یه پیام مهربون یا یه چای گرم خیلی کمک می‌کنه ☕"
+        Phase.FOLLICULAR -> "انرژی $name بالاست ⚡ وقت خوبیه یه برنامه‌ی دوستانه بچینید."
+        Phase.FERTILE, Phase.OVULATION -> "وسط چرخه‌ست؛ فقط همراهش باش 🌿"
+        Phase.LUTEAL -> "$name یه کم آروم‌تره؛ کم‌سؤال و مهربون باش 🫶"
+        Phase.PMS -> "$name ممکنه حساس‌تر باشه؛ صبور باش و یه شکلات هدیه بده 🍫"
+        null -> "هنوز اطلاعات کافی برای پیش‌بینی نیست."
+    }
+
+    fun partnerTip(p: Phase?, name: String, partner: Boolean = true): String = if (!partner) supportTip(p, name) else when (p) {
         Phase.MENSTRUAL -> pick(
             "$name این روزا گرفتگی داره؛ وظیفه‌ی توئه: کیسه‌آب‌گرم، شکلات و صفر بحث. عملیات قهرمانی 🦸",
             "پریود $name در جریانه 🩸 امروز تو نقش خدمتکار درجه‌یکی. شکلات، چای، ساکت.",
@@ -99,6 +118,15 @@ object Fa {
             "از امروز رسماً مجازی غر بزنی و شکلات بخوری 🍫 هورمون‌ها پای همه‌چی وایسادن.",
         )
         null -> "پریودت رو ثبت کن تا پیش‌بینی شروع بشه."
+    }
+
+    /** Calm wording for family and friends (mother, sister…); null = this event is not sent to them. */
+    fun supportNotif(type: EventType, herName: String): Pair<String, String>? = when (type) {
+        EventType.PMS_TOMORROW -> "فردا PMS $herName شروع می‌شه 🎢" to "اگه می‌تونی، یه حمایت کوچیک بکن 💚"
+        EventType.PMS_STARTS -> "PMS $herName امروز شروع شد" to "صبور و مهربون باش 🍫"
+        EventType.PERIOD_SOON -> "۲ روز دیگه $herName پریود می‌شه 🩸" to "شاید خوشحال بشه اگه حالش رو بپرسی."
+        EventType.PERIOD_TODAY -> "$herName امروز احتمالاً پریود می‌شه 🩸" to "یه پیام مهربون روزش رو بهتر می‌کنه."
+        EventType.OVULATION, EventType.PERIOD_LATE -> null
     }
 
     fun notif(type: EventType, herName: String, forHer: Boolean): Pair<String, String> {
@@ -152,7 +180,7 @@ object Fa {
         "tender" to "حساسیت سینه", "acne" to "جوش", "fatigue" to "خستگی", "insomnia" to "بی‌خوابی",
         "cravings" to "هوس خوراکی", "nausea" to "تهوع", "irritable" to "زودرنجی", "sad" to "غمگینی",
     )
-    fun symptomName(id: String) = symptoms.firstOrNull { it.first == id }?.second ?: id
+    fun symptomName(id: String) = symptoms.firstOrNull { it.first == id }?.second ?: flowName(id)
 
     val herQuick = listOf(
         "حالم خوب نیست، ریسک نکن 😤", "بغل کوووو 🤗 همین الان!", "شکلات بیار، جون خودت 🍫",

@@ -29,6 +29,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -309,38 +310,82 @@ private fun HomeTab(vm: AppVM, onOpenDay: (LocalDate) -> Unit) {
                         )
                     }
                 }
+                if (ov?.hasData == true && engine != null) {
+                    Spacer(Modifier.height(16.dp))
+                    Reveal(3, Modifier.fillMaxWidth()) {
+                        Row(
+                            Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(Color.White.copy(alpha = 0.14f))
+                                .padding(vertical = 14.dp),
+                            horizontalArrangement = Arrangement.SpaceEvenly,
+                        ) {
+                            HeroStat("روز چرخه", ov.cycleDay?.let { Fa.n(it) } ?: "—")
+                            HeroStat("طول چرخه", "${Fa.n(ov.cycleLength)} روز")
+                            HeroStat("طول پریود", "${Fa.n(engine.predictedPeriod)} روز")
+                            HeroStat("دقت", "±${Fa.n(ov.variability)}")
+                        }
+                    }
+                }
                 Spacer(Modifier.height(8.dp))
             }
         }
 
         // ---------------- cards
-        Column(Modifier.padding(horizontal = 20.dp).padding(top = 18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Column(Modifier.padding(horizontal = 20.dp).padding(top = 22.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
             if (!isHer && owner == null) {
                 Reveal(0) { ConnectCard(vm, s.pairs) }
             } else if (paused) {
                 Reveal(0) { Card { Txt("$ownerName اشتراک‌گذاری رو موقتاً متوقف کرده؛ وقتی فعالش کنه دوباره اطلاعات می‌رسه.", 15.sp, color = C.Muted) } }
             } else {
-                if ((ov?.lateDays ?: 0) >= 1) Reveal(0) { LateCard(vm, ov!!.lateDays, isHer, ownerName, today) }
-                if (isHer) Reveal(0) { TodayCard(vm, engine, today) }
-                Reveal(1) { MoodCard(vm, today, isHer, ownerName, onOpenDay) }
-                if (!isHer) Reveal(1) {
-                    Card {
-                        Column {
-                            Txt("امروز چه کار کنم؟", 14.sp, color = C.Muted)
-                            Spacer(Modifier.height(6.dp))
-                            Txt(Fa.partnerTip(ov?.phase, ownerName), 16.sp)
+                // ---- today
+                Reveal(0) {
+                    HomeSection(if (isHer) "امروز" else "امروز، یه نگاه") {
+                        if ((ov?.lateDays ?: 0) >= 1) LateCard(vm, ov!!.lateDays, isHer, ownerName, today)
+                        if (isHer) TodayCard(vm, engine, today)
+                        MoodCard(vm, today, isHer, ownerName, onOpenDay)
+                        if (!isHer) {
+                            Card {
+                                Column {
+                                    Txt("امروز چه کار کنم؟", 14.sp, color = C.Muted)
+                                    Spacer(Modifier.height(6.dp))
+                                    Txt(Fa.partnerTip(ov?.phase, ownerName, Fa.isPartnerLabel(s.activePair?.let { vm.labelOf(it) })), 16.sp)
+                                }
+                            }
+                        } else if (ov?.hasData == true) {
+                            Card { Column { Txt("برای تو", 14.sp, color = C.Muted); Spacer(Modifier.height(6.dp)); Txt(Fa.herTip(ov.phase), 16.sp) } }
                         }
                     }
-                } else if (ov?.hasData == true) Reveal(1) {
-                    Card { Column { Txt("برای تو", 14.sp, color = C.Muted); Spacer(Modifier.height(6.dp)); Txt(Fa.herTip(ov.phase), 16.sp) } }
                 }
-                if (s.activePair != null) Reveal(2) { MessagesCard(vm) }
-                if (ov?.hasData == true) Reveal(2) { UpcomingCard(ov) }
-                if (ov?.hasData == true) Reveal(3) { StatsCard(ov, engine!!) }
+                // ---- upcoming
+                if (ov?.hasData == true) Reveal(1) {
+                    HomeSection("پیش رو") { UpcomingCard(ov) }
+                }
+                // ---- messages
+                if (s.activePair != null) Reveal(2) {
+                    HomeSection("پیام‌ها") { MessagesCard(vm) }
+                }
             }
-            if (isHer) Reveal(4) { ShareCard(vm) }
-            Spacer(Modifier.height(110.dp))
+            // ---- partner sharing
+            if (isHer) Reveal(3) {
+                HomeSection("پارتنر") { ShareCard(vm) }
+            }
+            Spacer(Modifier.height(86.dp))
         }
+    }
+}
+
+@Composable
+private fun HomeSection(title: String, content: @Composable ColumnScope.() -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Txt(title, 13.sp, FontWeight.Medium, C.Muted, Modifier.padding(horizontal = 6.dp))
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp), content = content)
+    }
+}
+
+@Composable
+private fun HeroStat(label: String, value: String) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Txt(value, 16.sp, FontWeight.Medium, Color.White)
+        Txt(label, 11.sp, color = Color.White.copy(alpha = 0.75f))
     }
 }
 
@@ -381,7 +426,9 @@ private fun MoodCard(vm: AppVM, today: LocalDate, isHer: Boolean, name: String, 
                         }
                     }
                 }
-                if (!dl?.symptoms.isNullOrEmpty()) Txt(dl!!.symptoms.joinToString("، ") { Fa.symptomName(it) }, 13.sp, color = C.Muted)
+                val shown = listOfNotNull(Fa.flowOf(dl!!.symptoms)?.let { "شدت: ${Fa.flowName(it)}" }) +
+                    Fa.realSymptoms(dl.symptoms).map { Fa.symptomName(it) }
+                if (shown.isNotEmpty()) Txt(shown.joinToString("، "), 13.sp, color = C.Muted)
             } else {
                 Txt(if (isHer) "هنوز ثبت نکردی؛ بزن تا بگی امروز چه خبره 😄" else "هنوز چیزی ثبت نشده.", 15.sp, color = C.Muted)
             }
@@ -396,6 +443,10 @@ private fun MessagesCard(vm: AppVM) {
     val received = s.inbox.filter { it.toId == s.me.id }.take(3)
     LaunchedEffect(s.inbox) { if (received.any { it.readAt == null }) vm.markRead() }
     var sent by remember { mutableStateOf<String?>(null) }
+    var custom by rememberSaveable { mutableStateOf("") }
+    var editSaved by remember { mutableStateOf(false) }
+    var target by remember { mutableStateOf<String?>(null) }
+    val activePairs = s.pairs.filter { it.status == "active" }
     LaunchedEffect(sent) { if (sent != null) { delay(1700); sent = null } }
     Card {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -407,18 +458,59 @@ private fun MessagesCard(vm: AppVM) {
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Column(Modifier.weight(1f)) {
+                        val from = s.pairs.firstOrNull { it.partnerId == m.fromId || it.herId == m.fromId }?.let { vm.personTitle(it) }
+                        if (from != null) Txt(from, 11.sp, FontWeight.Medium, C.OnSoft)
                         Txt(m.body, 15.sp)
                         Txt(Fa.ago(m.createdAt), 11.sp, color = C.Muted)
                     }
                     if (m.readAt == null) Box(Modifier.size(8.dp).clip(CircleShape).background(C.Green))
                 }
             }
+            if (isHer && activePairs.size > 1) {
+                Txt("به کی پیام بدم؟", 14.sp, color = C.Muted)
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    item { Chip("همه", target == null, { target = null }) }
+                    items(activePairs) { p -> Chip(vm.personTitle(p), target == p.id, { target = p.id }) }
+                }
+            }
             Txt(if (isHer) "به پارتنرت خبر بده" else "یه پیام مهربون بفرست", 14.sp, color = C.Muted)
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(if (isHer) Fa.herQuick else Fa.partnerQuick) { txt ->
                     Chip(if (sent == txt) "ارسال شد ✓" else txt, sent == txt, {
-                        if (sent == null) { sent = txt; vm.sendMessage(txt) }
+                        if (sent == null) { sent = txt; vm.sendMessage(txt, target) }
                     })
+                }
+            }
+
+            // ---- my own saved messages
+            if (vm.savedMessages.isNotEmpty()) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Txt("پیام‌های خودم", 14.sp, color = C.Muted, modifier = Modifier.weight(1f))
+                    Txt(
+                        if (editSaved) "تمام" else "ویرایش", 13.sp, FontWeight.Medium, C.Green,
+                        Modifier.pressable { editSaved = !editSaved }.padding(4.dp),
+                    )
+                }
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(vm.savedMessages) { txt ->
+                        Chip(if (editSaved) "✕  $txt" else if (sent == txt) "ارسال شد ✓" else txt, sent == txt, {
+                            if (editSaved) vm.deleteSavedMessage(txt)
+                            else if (sent == null) { sent = txt; vm.sendMessage(txt, target) }
+                        })
+                    }
+                }
+            }
+
+            // ---- free text
+            Field(custom, { custom = it.take(200) }, "پیام دلخواه", imeAction = androidx.compose.ui.text.input.ImeAction.Done, onDone = {
+                if (custom.isNotBlank()) { vm.sendMessage(custom.trim(), target); custom = "" }
+            })
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Box(Modifier.weight(1f)) {
+                    PrimaryButton("ارسال", { vm.sendMessage(custom.trim(), target); custom = "" }, enabled = custom.isNotBlank())
+                }
+                Box(Modifier.weight(1f)) {
+                    PrimaryButton("ذخیره برای بعد", { vm.saveMessage(custom); custom = "" }, kind = BtnKind.Lime, enabled = custom.isNotBlank())
                 }
             }
         }
@@ -478,25 +570,6 @@ private fun EventRow(color: Color, title: String, whenText: String, date: String
     }
 }
 
-@Composable
-private fun StatsCard(ov: Overview, engine: CycleEngine) {
-    Card {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Stat("طول چرخه", "${Fa.n(ov.cycleLength)} روز")
-            Stat("طول پریود", "${Fa.n(engine.predictedPeriod)} روز")
-            Stat("دقت", "±${Fa.n(ov.variability)} روز")
-        }
-    }
-}
-
-@Composable
-private fun Stat(label: String, value: String) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Txt(value, 18.sp, FontWeight.Medium)
-        Txt(label, 12.sp, color = C.Muted)
-    }
-}
-
 // ---------------------------------------------------------------- share / pairing
 @Composable
 private fun ShareCard(vm: AppVM) {
@@ -506,8 +579,8 @@ private fun ShareCard(vm: AppVM) {
     LaunchedEffect(copied) { if (copied) { delay(1600); copied = false } }
     Card {
         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            Txt("اشتراک با پارتنر", 14.sp, color = C.Muted)
-            Txt("کد زیر رو بده به پارتنرت تا وارد برنامه‌ش کنه. بعدش خودت تایید می‌کنی.", 14.sp, color = C.Muted)
+            Txt("اشتراک چرخه", 14.sp, color = C.Muted)
+            Txt("کد زیر رو بده به هر کسی که می‌خوای چرخه‌ت رو ببینه (پارتنر، مادر، خواهر…). بعدش خودت تایید می‌کنی و نقشش رو تو تنظیمات می‌نویسی.", 14.sp, color = C.Muted)
             Row(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(C.LimeSoft)
                     .pressable {
@@ -517,14 +590,13 @@ private fun ShareCard(vm: AppVM) {
                     }.padding(horizontal = 20.dp, vertical = 16.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Txt(s.me.pairCode.orEmpty(), 30.sp, FontWeight.Bold, C.Deep, modifier = Modifier.weight(1f))
+                Txt(s.me.pairCode.orEmpty(), 30.sp, FontWeight.Bold, C.OnSoft, modifier = Modifier.weight(1f))
                 AnimatedContent(copied, label = "cp") { c ->
-                    if (c) Icon(Icons.Rounded.Check, null, tint = C.Green) else Icon(Icons.Rounded.ContentCopy, null, tint = C.Deep)
+                    if (c) Icon(Icons.Rounded.Check, null, tint = C.Green) else Icon(Icons.Rounded.ContentCopy, null, tint = C.OnSoft)
                 }
             }
             s.pairs.forEach { p ->
-                val partner = s.others[p.partnerId]
-                PairRowItem(vm, p, partner?.name ?: "پارتنر")
+                PairRowItem(vm, p, vm.personTitle(p))
             }
         }
     }
@@ -544,7 +616,7 @@ private fun PairRowItem(vm: AppVM, p: PairRow, name: String) {
         if (p.status == "pending") {
             RoundIcon(Icons.Rounded.Check, C.Green, Color.White) { vm.approve(p.id) }
             Spacer(Modifier.size(8.dp))
-            RoundIcon(Icons.Rounded.Close, C.CoralSoft, C.Ink) { vm.removePair(p.id) }
+            RoundIcon(Icons.Rounded.Close, C.CoralSoft, C.Text) { vm.removePair(p.id) }
         } else {
             RoundIcon(Icons.Rounded.Close, C.Paper, C.Muted) { vm.removePair(p.id) }
         }
@@ -600,14 +672,14 @@ private fun CalendarTab(vm: AppVM, onOpenDay: (LocalDate) -> Unit) {
     Column(Modifier.fillMaxSize().background(C.Paper).statusBarsPadding().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp)) {
         Spacer(Modifier.height(18.dp))
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            RoundIcon(Icons.Rounded.ChevronRight, Color.White, C.Ink) { month = Fa.jalaliMonth(first.minusDays(1)).first.toString() }
+            RoundIcon(Icons.Rounded.ChevronRight, C.Surface, C.Text) { month = Fa.jalaliMonth(first.minusDays(1)).first.toString() }
             AnimatedContent(
                 month,
                 modifier = Modifier.weight(1f),
                 transitionSpec = { fadeIn(tween(300)) togetherWith fadeOut(tween(200)) },
                 label = "mt",
             ) { m -> Txt(Fa.date(LocalDate.parse(m), "MMMM y"), 22.sp, FontWeight.Light, align = TextAlign.Center, modifier = Modifier.fillMaxWidth()) }
-            RoundIcon(Icons.Rounded.ChevronLeft, Color.White, C.Ink) { month = first.plusDays(len.toLong()).toString() }
+            RoundIcon(Icons.Rounded.ChevronLeft, C.Surface, C.Text) { month = first.plusDays(len.toLong()).toString() }
         }
         Spacer(Modifier.height(18.dp))
         Card(Modifier, ) {
@@ -657,7 +729,7 @@ private fun CalendarTab(vm: AppVM, onOpenDay: (LocalDate) -> Unit) {
                     Legend(C.LimeSoft, "پنجره‌ی باروری")
                     Legend(C.Lime, "تخمک‌گذاری")
                 }
-                Legend(C.Ink.copy(alpha = 0.55f), "حال یا علائم ثبت شده")
+                Legend(C.Text.copy(alpha = 0.55f), "حال یا علائم ثبت شده")
                 Txt("روی هر روز بزن تا جزئیاتش رو ببینی.", 12.sp, color = C.Muted)
             }
         }
@@ -695,168 +767,13 @@ private fun DayCell(d: LocalDate, today: LocalDate, engine: CycleEngine?, days: 
     val future = d.isAfter(today)
     Box(
         Modifier.fillMaxSize().scale(sc).clip(CircleShape).background(bg)
-            .then(if (isToday) Modifier.border(2.dp, C.Ink, CircleShape) else Modifier)
+            .then(if (isToday) Modifier.border(2.dp, C.Text, CircleShape) else Modifier)
             .then(if (!future) Modifier.pressable { onTap(d) } else Modifier),
         contentAlignment = Alignment.Center,
     ) {
-        Txt(Fa.jalaliDay(d), 14.sp, if (logged || isToday) FontWeight.Bold else FontWeight.Normal, if (future && bg == Color.Transparent) C.Muted else C.Ink)
+        Txt(Fa.jalaliDay(d), 14.sp, if (logged || isToday) FontWeight.Bold else FontWeight.Normal, if (future && bg == Color.Transparent) C.Muted else C.Text)
         if (days[d]?.let { it.mood != null || it.symptoms.isNotEmpty() } == true) {
-            Box(Modifier.align(Alignment.BottomCenter).padding(bottom = 3.dp).size(4.dp).clip(CircleShape).background(C.Ink.copy(alpha = 0.55f)))
+            Box(Modifier.align(Alignment.BottomCenter).padding(bottom = 3.dp).size(4.dp).clip(CircleShape).background(C.Text.copy(alpha = 0.55f)))
         }
-    }
-}
-
-// ============================================================================ settings tab
-@Composable
-private fun SettingsTab(vm: AppVM) {
-    val s = vm.snap ?: return
-    val me = s.me
-    val isHer = me.role == "her"
-    var editName by remember { mutableStateOf(false) }
-    var nameText by remember(me.name) { mutableStateOf(me.name.orEmpty()) }
-
-    Column(Modifier.fillMaxSize().background(C.Paper).statusBarsPadding().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp)) {
-        Spacer(Modifier.height(20.dp))
-        Reveal(0) { Txt("تنظیمات", 32.sp, FontWeight.Light) }
-        Spacer(Modifier.height(18.dp))
-        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            Reveal(1) {
-                Card {
-                    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(Modifier.size(52.dp).clip(CircleShape).background(C.Lime), contentAlignment = Alignment.Center) {
-                                Txt(me.name.orEmpty().take(1), 22.sp, FontWeight.Bold, C.Deep)
-                            }
-                            Spacer(Modifier.size(14.dp))
-                            Column(Modifier.weight(1f)) {
-                                Txt(me.name.orEmpty(), 18.sp, FontWeight.Medium)
-                                Txt(me.email.orEmpty(), 12.sp, color = C.Muted)
-                                Txt(if (isHer) "ثبت‌کننده‌ی چرخه" else "پارتنر", 12.sp, color = C.Green)
-                            }
-                            Txt(if (editName) "بستن" else "ویرایش", 13.sp, FontWeight.Medium, C.Green, Modifier.pressable { editName = !editName })
-                        }
-                        androidx.compose.animation.AnimatedVisibility(editName) {
-                            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                Field(nameText, { nameText = it }, "نام")
-                                PrimaryButton("ذخیره", { vm.saveName(nameText); editName = false }, loading = vm.busy)
-                            }
-                        }
-                    }
-                }
-            }
-
-            if (isHer) Reveal(2) {
-                Card {
-                    Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
-                        Txt("چرخه", 14.sp, color = C.Muted)
-                        SettingStepper("طول چرخه", me.cycleLength, 20, 45) { v -> vm.patch { put("cycle_length", v) } }
-                        SettingStepper("طول پریود", me.periodLength, 2, 10) { v -> vm.patch { put("period_length", v) } }
-                        SettingStepper("روزهای PMS", me.pmsDays, 1, 10) { v -> vm.patch { put("pms_days", v) } }
-                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Txt("نظم چرخه", 16.sp)
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                listOf("منظم", "کمی بالا و پایین", "نامنظم").forEachIndexed { i, t ->
-                                    Chip(t, me.regularity == i, { vm.patch { put("regularity", i) } })
-                                }
-                            }
-                        }
-                        SettingSwitch("روش هورمونی", "قرص، آی‌یودی هورمونی، آمپول… (باروری و تخمک‌گذاری نمایش داده نمی‌شه)", me.hormonal) { v -> vm.patch { put("hormonal", v) } }
-                    }
-                }
-                Spacer(Modifier.height(0.dp))
-            }
-            if (isHer) Reveal(3) {
-                Card {
-                    SettingSwitch("اشتراک با پارتنر", "اگه خاموش باشه پارتنرت چیزی نمی‌بینه", me.shareEnabled) { v -> vm.patch { put("share_enabled", v) } }
-                }
-            }
-            Reveal(4) {
-                Card {
-                    Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
-                        SettingSwitch("نوتیفیکیشن", if (isHer) "یادآوری PMS و پریود" else "خبر PMS و پریود پارتنرت", me.notifyEnabled) { v -> vm.patch { put("notify_enabled", v) } }
-                        androidx.compose.animation.AnimatedVisibility(me.notifyEnabled) {
-                            Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
-                                SettingStepper("ساعت یادآوری", me.notifyHour, 5, 23, { Fa.hour(it) }) { v -> vm.patch { put("notify_hour", v) } }
-                                SettingSwitch("PMS", "یک روز قبل و روز شروع", me.notifyPms) { v -> vm.patch { put("notify_pms", v) } }
-                                SettingSwitch("پریود", "دو روز قبل و روز پریود", me.notifyPeriod) { v -> vm.patch { put("notify_period", v) } }
-                                if (s.owner?.hormonal != true) SettingSwitch("تخمک‌گذاری", "روز تخمین‌زده‌شده", me.notifyOvulation) { v -> vm.patch { put("notify_ovulation", v) } }
-                                SettingSwitch("تأخیر پریود", "اگه از موعد دیرتر شد", me.notifyLate) { v -> vm.patch { put("notify_late", v) } }
-                            }
-                        }
-                    }
-                }
-            }
-            Reveal(5) {
-                val ctx = LocalContext.current
-                Card {
-                    SettingSwitch("قفل برنامه", "اثر انگشت، Face یا قفل گوشی", vm.lockEnabled) { v ->
-                        val act = ctx.findFragmentActivity()
-                        if (act == null || !Biometrics.available(ctx)) {
-                            vm.error = "اول روی گوشی قفل صفحه یا اثر انگشت تنظیم کن"
-                        } else {
-                            Biometrics.prompt(act, if (v) "فعال‌سازی قفل" else "غیرفعال‌سازی قفل", { vm.setLock(v) })
-                        }
-                    }
-                }
-            }
-            if (!isHer && s.pairs.isNotEmpty()) Reveal(6) {
-                Card {
-                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Txt("اتصال", 14.sp, color = C.Muted)
-                        s.pairs.forEach { p ->
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Column(Modifier.weight(1f)) {
-                                    Txt(s.others[p.herId]?.name ?: "درخواست ارسال‌شده", 16.sp, FontWeight.Medium)
-                                    Txt(if (p.status == "pending") "منتظر تایید" else "وصل است", 12.sp, color = if (p.status == "pending") C.Amber else C.Green)
-                                }
-                                RoundIcon(Icons.Rounded.Close, C.Paper, C.Muted) { vm.removePair(p.id) }
-                            }
-                        }
-                    }
-                }
-            }
-            Reveal(6) {
-                Card {
-                    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                        Txt("نسخه‌ی ${Fa.digits(BuildConfig.VERSION_NAME)}", 15.sp, FontWeight.Medium)
-                        PrimaryButton("بررسی آپدیت", { vm.checkUpdate() }, kind = BtnKind.Lime)
-                        PrimaryButton(
-                            "خروج از حساب", { vm.logout() }, kind = BtnKind.Light,
-                            modifier = Modifier.border(1.dp, C.Line, RoundedCornerShape(29.dp)),
-                            icon = { Icon(Icons.AutoMirrored.Rounded.Logout, null, tint = C.Ink, modifier = Modifier.size(20.dp)) },
-                        )
-                    }
-                }
-            }
-        }
-        Spacer(Modifier.height(130.dp))
-    }
-}
-
-@Composable
-private fun SettingStepper(label: String, value: Int, min: Int, max: Int, format: (Int) -> String = { Fa.n(it) }, onChange: (Int) -> Unit) {
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Txt(label, 16.sp, modifier = Modifier.weight(1f))
-        RoundIcon(Icons.Rounded.ChevronRight, C.Paper, C.Ink) { if (value < max) onChange(value + 1) }
-        Box(Modifier.size(64.dp, 40.dp), contentAlignment = Alignment.Center) {
-            AnimatedContent(value, transitionSpec = { fadeIn(tween(200)) togetherWith fadeOut(tween(150)) }, label = "sv") { v ->
-                Txt(format(v), 18.sp, FontWeight.Medium)
-            }
-        }
-        RoundIcon(Icons.Rounded.ChevronLeft, C.Paper, C.Ink) { if (value > min) onChange(value - 1) }
-    }
-}
-
-@Composable
-private fun SettingSwitch(title: String, sub: String, checked: Boolean, onChange: (Boolean) -> Unit) {
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Column(Modifier.weight(1f)) {
-            Txt(title, 16.sp, FontWeight.Medium)
-            Txt(sub, 12.sp, color = C.Muted)
-        }
-        Switch(
-            checked, onChange,
-            colors = SwitchDefaults.colors(checkedTrackColor = C.Green, checkedThumbColor = Color.White, uncheckedTrackColor = Color(0xFFD9DED9), uncheckedThumbColor = Color.White, uncheckedBorderColor = Color.Transparent),
-        )
     }
 }

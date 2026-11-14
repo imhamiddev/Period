@@ -84,7 +84,7 @@ fun Txt(
     text: String,
     size: TextUnit = 16.sp,
     weight: FontWeight = FontWeight.Normal,
-    color: Color = C.Ink,
+    color: Color = C.Text,
     modifier: Modifier = Modifier,
     align: TextAlign? = null,
     lineHeight: TextUnit = size * 1.55f,
@@ -126,7 +126,7 @@ fun Aurora(modifier: Modifier = Modifier, content: @Composable BoxScope.() -> Un
     val b by t.animateFloat(0f, 1f, infiniteRepeatable(tween(17000, easing = LinearEasing), RepeatMode.Reverse), label = "b")
     Box(
         modifier
-            .background(Brush.verticalGradient(listOf(Color(0xFF8ED65A), C.Green, C.GreenMid, C.Deep)))
+            .background(Brush.verticalGradient(listOf(C.AuroraTop, C.Green, C.GreenMid, C.Deep)))
             .drawBehind {
                 val w = size.width
                 val h = size.height
@@ -138,7 +138,7 @@ fun Aurora(modifier: Modifier = Modifier, content: @Composable BoxScope.() -> Un
                 drawRect(Brush.radialGradient(listOf(C.Deep.copy(alpha = 0.85f), Color.Transparent), c2, r2))
                 val r3 = w * 0.7f
                 val c3 = Offset(w * (0.2f + 0.3f * a), h * (0.35f + 0.1f * b))
-                drawRect(Brush.radialGradient(listOf(Color(0xFF45B24A).copy(alpha = 0.55f), Color.Transparent), c3, r3))
+                drawRect(Brush.radialGradient(listOf(C.AuroraMid.copy(alpha = 0.55f), Color.Transparent), c3, r3))
             },
         content = content,
     )
@@ -170,7 +170,7 @@ fun PrimaryButton(
         when {
             !enabled -> if (kind == BtnKind.Dark) Color(0xFF9AA59E) else Color.White.copy(alpha = 0.35f)
             kind == BtnKind.Dark -> C.Ink
-            kind == BtnKind.Light -> Color.White
+            kind == BtnKind.Light -> C.Surface
             kind == BtnKind.Lime -> C.Lime
             else -> Color.White.copy(alpha = 0.18f)
         },
@@ -178,7 +178,8 @@ fun PrimaryButton(
     )
     val fg = when (kind) {
         BtnKind.Dark -> Color.White
-        BtnKind.Light, BtnKind.Lime -> C.Ink
+        BtnKind.Light -> C.Text
+        BtnKind.Lime -> C.Deep
         BtnKind.Glass -> Color.White
     }
     val src = remember { MutableInteractionSource() }
@@ -218,7 +219,7 @@ fun Card(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
         modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(28.dp))
-            .background(Color.White)
+            .background(C.Surface)
             .border(BorderStroke(1.dp, C.Line), RoundedCornerShape(28.dp))
             .padding(20.dp),
     ) { content() }
@@ -250,7 +251,7 @@ fun Field(
                     .fillMaxWidth()
                     .then(if (singleLine) Modifier.height(58.dp) else Modifier.heightIn(min = 120.dp))
                     .clip(RoundedCornerShape(20.dp))
-                    .background(Color.White)
+                    .background(C.Surface)
                     .border(width, border, RoundedCornerShape(20.dp))
                     .padding(horizontal = 18.dp, vertical = if (singleLine) 0.dp else 14.dp),
                 verticalAlignment = if (singleLine) Alignment.CenterVertically else Alignment.Top,
@@ -273,7 +274,7 @@ fun Field(
                     singleLine = singleLine,
                     minLines = if (singleLine) 1 else 4,
                     textStyle = TextStyle(
-                        fontFamily = Vazir, fontSize = 16.sp, color = C.Ink,
+                        fontFamily = Vazir, fontSize = 16.sp, color = C.Text,
                         textDirection = if (ltr || password) TextDirection.Ltr else TextDirection.Content,
                     ),
                     cursorBrush = SolidColor(C.Green),
@@ -293,7 +294,7 @@ fun StepBars(count: Int, current: Int, modifier: Modifier = Modifier, onDark: Bo
         repeat(count) { i ->
             val w by animateDpAsState(if (i == current) 44.dp else 26.dp, spring(0.7f), label = "sw")
             val c by animateColorAsState(
-                if (i <= current) (if (onDark) Color.White else C.Ink) else (if (onDark) Color.White.copy(alpha = 0.3f) else C.Line),
+                if (i <= current) (if (onDark) Color.White else C.Text) else (if (onDark) Color.White.copy(alpha = 0.3f) else C.Line),
                 label = "sc",
             )
             Box(Modifier.size(w, 4.dp).clip(CircleShape).background(c))
@@ -322,8 +323,8 @@ fun DropMark(size: Dp, color: Color = Color.White, accent: Color = C.Lime) {
 
 @Composable
 fun Chip(text: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    val bg by animateColorAsState(if (selected) C.Ink else Color.White, tween(220), label = "chipbg")
-    val fg by animateColorAsState(if (selected) Color.White else C.Ink, tween(220), label = "chipfg")
+    val bg by animateColorAsState(if (selected) C.Ink else C.Surface, tween(220), label = "chipbg")
+    val fg by animateColorAsState(if (selected) Color.White else C.Text, tween(220), label = "chipfg")
     val sc by animateFloatAsState(if (selected) 1.05f else 1f, spring(0.45f, 500f), label = "chipsc")
     Box(
         modifier.graphicsLayer { scaleX = sc; scaleY = sc }

@@ -89,6 +89,7 @@ object Notifier {
         val engine = owner.toEngine(today, snap.logs)
         val forHer = me.role == "her"
         val herName = owner.name?.takeIf { it.isNotBlank() } ?: "پارتنرت"
+        val partnerTone = forHer || Fa.isPartnerLabel(snap.activePair?.label)
         engine.dueEvents().forEach { ev ->
             val allowed = when (ev) {
                 EventType.PMS_TOMORROW, EventType.PMS_STARTS -> me.notifyPms
@@ -98,8 +99,8 @@ object Notifier {
             }
             val key = "${ev.name}-$today"
             if (allowed && !store.wasSent(key)) {
-                val (t, b) = Fa.notif(ev, herName, forHer)
-                post(ctx, key.hashCode(), t, b)
+                val text = if (partnerTone) Fa.notif(ev, herName, forHer) else Fa.supportNotif(ev, herName)
+                if (text != null) post(ctx, key.hashCode(), text.first, text.second)
                 store.markSent(key)
             }
         }

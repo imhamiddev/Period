@@ -282,7 +282,7 @@ fun RoleScreen(vm: AppVM) {
 private fun RoleCard(id: String, selected: String?, title: String, desc: String, icon: androidx.compose.ui.graphics.vector.ImageVector, onClick: () -> Unit) {
     val sel = selected == id
     val border by animateColorAsState(if (sel) C.Green else C.Line, tween(250), label = "rb")
-    val bg by animateColorAsState(if (sel) C.LimeSoft else Color.White, tween(250), label = "rbg")
+    val bg by animateColorAsState(if (sel) C.LimeSoft else C.Surface, tween(250), label = "rbg")
     Row(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(28.dp)).background(bg)
             .border(if (sel) 2.dp else 1.dp, border, RoundedCornerShape(28.dp))
@@ -475,7 +475,7 @@ fun SetupScreen(vm: AppVM) {
 @Composable
 private fun OptionRow(title: String, desc: String, selected: Boolean, onClick: () -> Unit) {
     val border by animateColorAsState(if (selected) C.Green else C.Line, tween(250), label = "ob")
-    val bg by animateColorAsState(if (selected) C.LimeSoft else Color.White, tween(250), label = "obg")
+    val bg by animateColorAsState(if (selected) C.LimeSoft else C.Surface, tween(250), label = "obg")
     Row(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(bg)
             .border(if (selected) 2.dp else 1.dp, border, RoundedCornerShape(20.dp))
@@ -497,8 +497,8 @@ private fun Modifier.width(w: androidx.compose.ui.unit.Dp) = this.then(Modifier.
 
 @Composable
 private fun DayChip(d: LocalDate, selected: Boolean, onClick: () -> Unit) {
-    val bg by animateColorAsState(if (selected) C.Ink else Color.White, tween(250), label = "dcb")
-    val fg by animateColorAsState(if (selected) Color.White else C.Ink, tween(250), label = "dcf")
+    val bg by animateColorAsState(if (selected) C.Ink else C.Surface, tween(250), label = "dcb")
+    val fg by animateColorAsState(if (selected) Color.White else C.Text, tween(250), label = "dcf")
     Column(
         Modifier.clip(RoundedCornerShape(20.dp)).background(bg).border(1.dp, C.Line, RoundedCornerShape(20.dp))
             .pressable(onClick = onClick).padding(horizontal = 16.dp, vertical = 12.dp),
@@ -533,9 +533,9 @@ private fun Stepper(value: Int, min: Int, max: Int, unit: String, onChange: (Int
 @Composable
 private fun StepBtn(icon: androidx.compose.ui.graphics.vector.ImageVector, onClick: () -> Unit) {
     Box(
-        Modifier.size(64.dp).clip(CircleShape).background(Color.White).border(1.dp, C.Line, CircleShape).pressable(onClick = onClick),
+        Modifier.size(64.dp).clip(CircleShape).background(C.Surface).border(1.dp, C.Line, CircleShape).pressable(onClick = onClick),
         contentAlignment = Alignment.Center,
-    ) { Icon(icon, null, tint = C.Ink) }
+    ) { Icon(icon, null, tint = C.Text) }
 }
 
 // ============================================================================ update banner

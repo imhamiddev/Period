@@ -84,7 +84,7 @@ fun DaySheet(vm: AppVM, day: LocalDate, onClose: () -> Unit) {
                 Txt(Fa.date(day, "EEEE d MMMM"), 22.sp, FontWeight.Light)
                 if (phase != null) Txt(Fa.phaseName(phase), 13.sp, color = C.Green)
             }
-            RoundIcon(Icons.Rounded.Close, Color.White, C.Ink, onClose)
+            RoundIcon(Icons.Rounded.Close, C.Surface, C.Text, onClose)
         }
 
         if (isHer) {
@@ -99,6 +99,21 @@ fun DaySheet(vm: AppVM, day: LocalDate, onClose: () -> Unit) {
                 Box(Modifier.size(12.dp).clip(CircleShape).background(C.Coral))
                 Spacer(Modifier.size(10.dp))
                 Txt("$ownerName این روز پریود بوده", 15.sp)
+            }
+        }
+
+        // ---- bleeding intensity
+        val flow = Fa.flowOf(dl?.symptoms.orEmpty())
+        if ((isHer && logged) || (!isHer && flow != null)) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Txt("شدت خونریزی", 14.sp, color = C.Muted)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Fa.flows.forEach { (id, label) ->
+                        if (isHer || id == flow) {
+                            Chip(label, id == flow, { if (isHer) vm.setFlow(day, if (id == flow) null else id) })
+                        }
+                    }
+                }
             }
         }
 
@@ -142,7 +157,7 @@ fun DaySheet(vm: AppVM, day: LocalDate, onClose: () -> Unit) {
                     }
                 }
             }
-            if (!isHer && dl?.symptoms.isNullOrEmpty()) Txt("علامتی ثبت نشده", 13.sp, color = C.Muted)
+            if (!isHer && Fa.realSymptoms(dl?.symptoms.orEmpty()).isEmpty()) Txt("علامتی ثبت نشده", 13.sp, color = C.Muted)
         }
 
         // ---- note
@@ -157,7 +172,7 @@ fun DaySheet(vm: AppVM, day: LocalDate, onClose: () -> Unit) {
                     }
                     Switch(
                         shared, { shared = it },
-                        colors = SwitchDefaults.colors(checkedTrackColor = C.Green, checkedThumbColor = Color.White, uncheckedTrackColor = Color(0xFFD9DED9), uncheckedThumbColor = Color.White, uncheckedBorderColor = Color.Transparent),
+                        colors = SwitchDefaults.colors(checkedTrackColor = C.Green, checkedThumbColor = Color.White, uncheckedTrackColor = C.Track, uncheckedThumbColor = Color.White, uncheckedBorderColor = Color.Transparent),
                     )
                 }
                 PrimaryButton(
@@ -169,7 +184,7 @@ fun DaySheet(vm: AppVM, day: LocalDate, onClose: () -> Unit) {
         } else if (note != null) {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Txt("یادداشت $ownerName", 14.sp, color = C.Muted)
-                Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Color.White).border(1.dp, C.Line, RoundedCornerShape(20.dp)).padding(16.dp)) {
+                Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(C.Surface).border(1.dp, C.Line, RoundedCornerShape(20.dp)).padding(16.dp)) {
                     Txt(note.body, 15.sp)
                 }
             }
@@ -180,7 +195,7 @@ fun DaySheet(vm: AppVM, day: LocalDate, onClose: () -> Unit) {
 
 @Composable
 private fun MoodFace(emoji: String, selected: Boolean, enabled: Boolean, onClick: () -> Unit) {
-    val bg by animateColorAsState(if (selected) C.Lime else Color.White, tween(250), label = "mf")
+    val bg by animateColorAsState(if (selected) C.Lime else C.Surface, tween(250), label = "mf")
     val sc by animateFloatAsState(if (selected) 1.18f else 1f, spring(0.35f, 420f), label = "mfs")
     Box(
         Modifier.graphicsLayer { scaleX = sc; scaleY = sc }

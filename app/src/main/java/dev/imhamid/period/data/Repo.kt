@@ -109,6 +109,11 @@ class Repo(private val store: SessionStore) {
         authed("PATCH", "/rest/v1/pairs?id=eq.$pairId", """{"status":"active"}""", mapOf("Prefer" to "return=minimal"))
     }
 
+    suspend fun setPairLabel(pairId: String, label: String) {
+        val b = buildJsonObject { put("label", label) }.toString()
+        authed("PATCH", "/rest/v1/pairs?id=eq.$pairId", b, mapOf("Prefer" to "return=minimal"))
+    }
+
     suspend fun removePair(pairId: String) {
         authed("DELETE", "/rest/v1/pairs?id=eq.$pairId")
     }
