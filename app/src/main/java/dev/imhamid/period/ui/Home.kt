@@ -353,8 +353,8 @@ private fun LateCard(vm: AppVM, days: Int, isHer: Boolean, name: String, today: 
                 Txt(if (isHer) "پریودت ${Fa.n(days)} روز دیر کرده" else "پریود $name ${Fa.n(days)} روز دیر کرده", 16.sp, FontWeight.Medium)
             }
             Txt(
-                if (isHer) "اگه شروع شده ثبتش کن. اگه نه، تغییرات کوچیک چرخه با استرس، خواب یا سفر طبیعیه؛ اگه خیلی طول کشید با پزشک مشورت کن."
-                else "ممکنه استرس یا تغییر برنامه باشه. آروم و مهربون کنارش باش.",
+                if (isHer) "اگه شروع شده ثبتش کن. اگه نه، استرس و بی‌خوابی و سفر هم می‌تونن چرخه رو بهم بزنن؛ اگه خیلی طول کشید با دکتر حرف بزن."
+                else "شاید فقط استرس باشه. هول نکن؛ آروم و مهربون کنارش باش.",
                 14.sp, color = C.Muted,
             )
             if (isHer) PrimaryButton("پریودم امروز شروع شد", { vm.toggleDay(today) })
@@ -382,7 +382,7 @@ private fun MoodCard(vm: AppVM, today: LocalDate, isHer: Boolean, name: String, 
                 }
                 if (!dl?.symptoms.isNullOrEmpty()) Txt(dl!!.symptoms.joinToString("، ") { Fa.symptomName(it) }, 13.sp, color = C.Muted)
             } else {
-                Txt(if (isHer) "هنوز ثبت نکردی؛ بزن تا حال، انرژی و علائمت رو ثبت کنی." else "هنوز چیزی ثبت نشده.", 15.sp, color = C.Muted)
+                Txt(if (isHer) "هنوز ثبت نکردی؛ بزن تا بگی امروز چه خبره 😄" else "هنوز چیزی ثبت نشده.", 15.sp, color = C.Muted)
             }
         }
     }
