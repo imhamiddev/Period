@@ -38,7 +38,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.ChevronLeft
+import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.ui.text.style.TextAlign
+import dev.imhamid.period.data.Profile
 import dev.imhamid.period.engine.CycleEngine
+import dev.imhamid.period.engine.Period
 import dev.imhamid.period.engine.toEngine
 import dev.imhamid.period.engine.Phase
 import java.time.LocalDate
@@ -113,6 +119,82 @@ fun StatsTab(vm: AppVM) {
                                 },
                                 13.sp, FontWeight.Medium, C.Green,
                             )
+                        }
+                    }
+                }
+
+                // ---- prediction vs reality
+                val pred = remember(s.logs, owner) { if (owner == null) emptyList() else predictionHistory(owner, s.logs, engine.periods) }
+                if (pred.isNotEmpty()) Reveal(2) {
+                    Card {
+                        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                            val recentPred = pred.takeLast(6)
+                            val meanErr = recentPred.map { kotlin.math.abs(it.err) }.average()
+                            val hit = recentPred.count { kotlin.math.abs(it.err) <= 2 }
+                            Txt("پیش‌بینی در برابر واقعیت", 14.sp, color = C.Muted)
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                StatBlock("میانگین خطا", "${Fa.n(meanErr.roundToInt())} روز")
+                                StatBlock("درست (±۲ روز)", "${Fa.n(hit)} از ${Fa.n(recentPred.size)}")
+                            }
+                            recentPred.reversed().forEach { r ->
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Column(Modifier.weight(1f)) {
+                                        Txt("واقعی: ${Fa.date(r.actual, "d MMMM")}", 14.sp, FontWeight.Medium)
+                                        Txt("پیش‌بینی: ${Fa.date(r.predicted, "d MMMM")}", 12.sp, color = C.Muted)
+                                    }
+                                    val ok = kotlin.math.abs(r.err) <= 2
+                                    Box(Modifier.clip(RoundedCornerShape(12.dp)).background(if (ok) C.LimeSoft else C.AmberSoft).padding(horizontal = 10.dp, vertical = 4.dp)) {
+                                        Txt(
+                                            when {
+                                                r.err == 0 -> "دقیق"
+                                                r.err > 0 -> "${Fa.n(r.err)} روز دیرتر"
+                                                else -> "${Fa.n(-r.err)} روز زودتر"
+                                            },
+                                            12.sp, FontWeight.Medium, if (ok) C.OnSoft else C.Text,
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // ---- monthly summary
+                var monthStart by rememberSaveable { mutableStateOf(Fa.jalaliMonth(today).first.toString()) }
+                Reveal(3) {
+                    val first = LocalDate.parse(monthStart)
+                    val len = Fa.jalaliMonth(first).second
+                    val last = first.plusDays(len - 1L)
+                    val upTo = if (last.isAfter(today)) today else last
+                    val inMonth = { d: LocalDate -> !d.isBefore(first) && !d.isAfter(last) }
+                    val monthDays = s.days.values.filter { inMonth(LocalDate.parse(it.day)) }
+                    val bleed = engine.bleedingSet.count { inMonth(it) }
+                    val starts = engine.periods.count { inMonth(it.start) }
+                    val moods = monthDays.mapNotNull { it.mood }
+                    val topSym = monthDays.flatMap { it.symptoms }.groupingBy { it }.eachCount().maxByOrNull { it.value }
+                    val notesN = s.notes.values.count { inMonth(LocalDate.parse(it.day)) }
+                    val pmsDays = if (upTo.isBefore(first)) 0 else (0..ChronoUnit.DAYS.between(first, upTo).toInt()).count { engine.phaseOn(first.plusDays(it.toLong())) == Phase.PMS }
+                    Card {
+                        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                RoundIcon(Icons.Rounded.ChevronRight, C.Paper, C.Text) { monthStart = Fa.jalaliMonth(first.minusDays(1)).first.toString() }
+                                Txt("خلاصه‌ی ${Fa.date(first, "MMMM y")}", 16.sp, FontWeight.Medium, align = TextAlign.Center, modifier = Modifier.weight(1f))
+                                RoundIcon(Icons.Rounded.ChevronLeft, C.Paper, C.Text) {
+                                    if (last.isBefore(today)) monthStart = last.plusDays(1).toString()
+                                }
+                            }
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                StatBlock("شروع پریود", Fa.n(starts))
+                                StatBlock("روز خونریزی", Fa.n(bleed))
+                                StatBlock("روز PMS", Fa.n(pmsDays))
+                                StatBlock("یادداشت", Fa.n(notesN))
+                            }
+                            if (moods.isNotEmpty()) {
+                                val avg = moods.average()
+                                Txt("میانگین حال‌وهوا: ${Fa.moods[(avg.roundToInt() - 1).coerceIn(0, 4)]}  ${Fa.moodNames[(avg.roundToInt() - 1).coerceIn(0, 4)]}", 14.sp)
+                            }
+                            if (topSym != null) Txt("بیشترین علامت: ${Fa.symptomName(topSym.key)} (${Fa.n(topSym.value)} روز)", 14.sp)
+                            if (moods.isEmpty() && topSym == null && bleed == 0) Txt("این ماه چیزی ثبت نشده.", 13.sp, color = C.Muted)
                         }
                     }
                 }
@@ -279,6 +361,20 @@ fun StatsTab(vm: AppVM) {
     }
 }
 
+private data class PredRow(val actual: LocalDate, val predicted: LocalDate, val err: Int)
+
+/** For each past period, what the engine would have predicted using only the data before it. */
+private fun predictionHistory(owner: Profile, logs: Set<LocalDate>, periods: List<Period>): List<PredRow> {
+    val out = mutableListOf<PredRow>()
+    for (i in 1 until periods.size) {
+        val cutoff = periods[i].start
+        val e = owner.toEngine(periods[i - 1].end.plusDays(1), logs.filter { it < cutoff })
+        val predicted = e.nextPeriod ?: continue
+        out += PredRow(cutoff, predicted, ChronoUnit.DAYS.between(predicted, cutoff).toInt())
+    }
+    return out
+}
+
 private fun moodColor(m: Int): Color = when (m) {
     1 -> C.Coral
     2 -> C.Amber
@@ -290,7 +386,7 @@ private fun moodColor(m: Int): Color = when (m) {
 @Composable
 private fun RowScope.StatTile(label: String, value: String, unit: String, accent: Color) {
     Column(
-        Modifier.weight(1f).clip(RoundedCornerShape(24.dp)).background(Color.White)
+        Modifier.weight(1f).clip(RoundedCornerShape(24.dp)).background(C.Surface)
             .border(1.dp, C.Line, RoundedCornerShape(24.dp)).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
@@ -320,12 +416,12 @@ private fun HistoryRow(p: dev.imhamid.period.engine.Period, gap: Int?, avg: Int,
             val dev = gap - avg
             Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Box(Modifier.clip(RoundedCornerShape(12.dp)).background(C.LimeSoft).padding(horizontal = 10.dp, vertical = 4.dp)) {
-                    Txt("چرخه ${Fa.n(gap)}", 12.sp, FontWeight.Medium, C.Deep)
+                    Txt("چرخه ${Fa.n(gap)}", 12.sp, FontWeight.Medium, C.OnSoft)
                 }
                 if (dev != 0) {
                     val off = kotlin.math.abs(dev) > variability
                     Box(Modifier.clip(RoundedCornerShape(12.dp)).background(if (off) C.AmberSoft else C.Paper).padding(horizontal = 10.dp, vertical = 2.dp)) {
-                        Txt(if (dev > 0) "+${Fa.n(dev)} از میانگین" else "−${Fa.n(-dev)} از میانگین", 11.sp, color = if (off) C.Ink else C.Muted)
+                        Txt(if (dev > 0) "+${Fa.n(dev)} از میانگین" else "−${Fa.n(-dev)} از میانگین", 11.sp, color = if (off) C.Text else C.Muted)
                     }
                 }
             }

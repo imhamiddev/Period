@@ -441,6 +441,8 @@ private fun MessagesCard(vm: AppVM) {
     val received = s.inbox.filter { it.toId == s.me.id }.take(3)
     LaunchedEffect(s.inbox) { if (received.any { it.readAt == null }) vm.markRead() }
     var sent by remember { mutableStateOf<String?>(null) }
+    var custom by rememberSaveable { mutableStateOf("") }
+    var editSaved by remember { mutableStateOf(false) }
     LaunchedEffect(sent) { if (sent != null) { delay(1700); sent = null } }
     Card {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -464,6 +466,38 @@ private fun MessagesCard(vm: AppVM) {
                     Chip(if (sent == txt) "ارسال شد ✓" else txt, sent == txt, {
                         if (sent == null) { sent = txt; vm.sendMessage(txt) }
                     })
+                }
+            }
+
+            // ---- my own saved messages
+            if (vm.savedMessages.isNotEmpty()) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Txt("پیام‌های خودم", 14.sp, color = C.Muted, modifier = Modifier.weight(1f))
+                    Txt(
+                        if (editSaved) "تمام" else "ویرایش", 13.sp, FontWeight.Medium, C.Green,
+                        Modifier.pressable { editSaved = !editSaved }.padding(4.dp),
+                    )
+                }
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(vm.savedMessages) { txt ->
+                        Chip(if (editSaved) "✕  $txt" else if (sent == txt) "ارسال شد ✓" else txt, sent == txt, {
+                            if (editSaved) vm.deleteSavedMessage(txt)
+                            else if (sent == null) { sent = txt; vm.sendMessage(txt) }
+                        })
+                    }
+                }
+            }
+
+            // ---- free text
+            Field(custom, { custom = it.take(200) }, "پیام دلخواه", imeAction = androidx.compose.ui.text.input.ImeAction.Done, onDone = {
+                if (custom.isNotBlank()) { vm.sendMessage(custom.trim()); custom = "" }
+            })
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Box(Modifier.weight(1f)) {
+                    PrimaryButton("ارسال", { vm.sendMessage(custom.trim()); custom = "" }, enabled = custom.isNotBlank())
+                }
+                Box(Modifier.weight(1f)) {
+                    PrimaryButton("ذخیره برای بعد", { vm.saveMessage(custom); custom = "" }, kind = BtnKind.Lime, enabled = custom.isNotBlank())
                 }
             }
         }
@@ -543,9 +577,9 @@ private fun ShareCard(vm: AppVM) {
                     }.padding(horizontal = 20.dp, vertical = 16.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Txt(s.me.pairCode.orEmpty(), 30.sp, FontWeight.Bold, C.Deep, modifier = Modifier.weight(1f))
+                Txt(s.me.pairCode.orEmpty(), 30.sp, FontWeight.Bold, C.OnSoft, modifier = Modifier.weight(1f))
                 AnimatedContent(copied, label = "cp") { c ->
-                    if (c) Icon(Icons.Rounded.Check, null, tint = C.Green) else Icon(Icons.Rounded.ContentCopy, null, tint = C.Deep)
+                    if (c) Icon(Icons.Rounded.Check, null, tint = C.Green) else Icon(Icons.Rounded.ContentCopy, null, tint = C.OnSoft)
                 }
             }
             s.pairs.forEach { p ->
@@ -570,7 +604,7 @@ private fun PairRowItem(vm: AppVM, p: PairRow, name: String) {
         if (p.status == "pending") {
             RoundIcon(Icons.Rounded.Check, C.Green, Color.White) { vm.approve(p.id) }
             Spacer(Modifier.size(8.dp))
-            RoundIcon(Icons.Rounded.Close, C.CoralSoft, C.Ink) { vm.removePair(p.id) }
+            RoundIcon(Icons.Rounded.Close, C.CoralSoft, C.Text) { vm.removePair(p.id) }
         } else {
             RoundIcon(Icons.Rounded.Close, C.Paper, C.Muted) { vm.removePair(p.id) }
         }
@@ -626,14 +660,14 @@ private fun CalendarTab(vm: AppVM, onOpenDay: (LocalDate) -> Unit) {
     Column(Modifier.fillMaxSize().background(C.Paper).statusBarsPadding().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp)) {
         Spacer(Modifier.height(18.dp))
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            RoundIcon(Icons.Rounded.ChevronRight, Color.White, C.Ink) { month = Fa.jalaliMonth(first.minusDays(1)).first.toString() }
+            RoundIcon(Icons.Rounded.ChevronRight, C.Surface, C.Text) { month = Fa.jalaliMonth(first.minusDays(1)).first.toString() }
             AnimatedContent(
                 month,
                 modifier = Modifier.weight(1f),
                 transitionSpec = { fadeIn(tween(300)) togetherWith fadeOut(tween(200)) },
                 label = "mt",
             ) { m -> Txt(Fa.date(LocalDate.parse(m), "MMMM y"), 22.sp, FontWeight.Light, align = TextAlign.Center, modifier = Modifier.fillMaxWidth()) }
-            RoundIcon(Icons.Rounded.ChevronLeft, Color.White, C.Ink) { month = first.plusDays(len.toLong()).toString() }
+            RoundIcon(Icons.Rounded.ChevronLeft, C.Surface, C.Text) { month = first.plusDays(len.toLong()).toString() }
         }
         Spacer(Modifier.height(18.dp))
         Card(Modifier, ) {
@@ -683,7 +717,7 @@ private fun CalendarTab(vm: AppVM, onOpenDay: (LocalDate) -> Unit) {
                     Legend(C.LimeSoft, "پنجره‌ی باروری")
                     Legend(C.Lime, "تخمک‌گذاری")
                 }
-                Legend(C.Ink.copy(alpha = 0.55f), "حال یا علائم ثبت شده")
+                Legend(C.Text.copy(alpha = 0.55f), "حال یا علائم ثبت شده")
                 Txt("روی هر روز بزن تا جزئیاتش رو ببینی.", 12.sp, color = C.Muted)
             }
         }
@@ -721,13 +755,13 @@ private fun DayCell(d: LocalDate, today: LocalDate, engine: CycleEngine?, days: 
     val future = d.isAfter(today)
     Box(
         Modifier.fillMaxSize().scale(sc).clip(CircleShape).background(bg)
-            .then(if (isToday) Modifier.border(2.dp, C.Ink, CircleShape) else Modifier)
+            .then(if (isToday) Modifier.border(2.dp, C.Text, CircleShape) else Modifier)
             .then(if (!future) Modifier.pressable { onTap(d) } else Modifier),
         contentAlignment = Alignment.Center,
     ) {
-        Txt(Fa.jalaliDay(d), 14.sp, if (logged || isToday) FontWeight.Bold else FontWeight.Normal, if (future && bg == Color.Transparent) C.Muted else C.Ink)
+        Txt(Fa.jalaliDay(d), 14.sp, if (logged || isToday) FontWeight.Bold else FontWeight.Normal, if (future && bg == Color.Transparent) C.Muted else C.Text)
         if (days[d]?.let { it.mood != null || it.symptoms.isNotEmpty() } == true) {
-            Box(Modifier.align(Alignment.BottomCenter).padding(bottom = 3.dp).size(4.dp).clip(CircleShape).background(C.Ink.copy(alpha = 0.55f)))
+            Box(Modifier.align(Alignment.BottomCenter).padding(bottom = 3.dp).size(4.dp).clip(CircleShape).background(C.Text.copy(alpha = 0.55f)))
         }
     }
 }

@@ -51,10 +51,10 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import dev.imhamid.period.ui.AppVM
 import dev.imhamid.period.ui.AuthScreen
 import dev.imhamid.period.ui.BootScreen
-import dev.imhamid.period.ui.C
 import dev.imhamid.period.ui.HomeScreen
 import dev.imhamid.period.ui.IntroScreen
 import dev.imhamid.period.ui.NameScreen
+import dev.imhamid.period.ui.C
 import dev.imhamid.period.ui.PeriodTheme
 import dev.imhamid.period.ui.Route
 import dev.imhamid.period.ui.RoleScreen
@@ -87,9 +87,14 @@ class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        C.dark = when (vm.themeMode) {
+            1 -> false
+            2 -> true
+            else -> (resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
+        }
         locked = vm.lockEnabled && dev.imhamid.period.ui.Biometrics.available(this)
         setContent {
-            PeriodTheme {
+            PeriodTheme(vm.themeMode) {
                 CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
                     Root(vm, locked) { unlock() }
                 }

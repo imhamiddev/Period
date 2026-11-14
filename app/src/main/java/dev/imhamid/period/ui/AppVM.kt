@@ -39,6 +39,8 @@ class AppVM(private val app: Application) : AndroidViewModel(app) {
     var error by mutableStateOf<String?>(null)
     var update by mutableStateOf<UpdateState>(UpdateState.None)
     var lockEnabled by mutableStateOf(store.lockEnabled)
+    var themeMode by mutableStateOf(store.themeMode)
+    var savedMessages by mutableStateOf(store.savedMessages)
 
     private val dayJobs = mutableMapOf<LocalDate, Job>()
     private val noteJobs = mutableMapOf<LocalDate, Job>()
@@ -226,6 +228,7 @@ class AppVM(private val app: Application) : AndroidViewModel(app) {
     // ------------------------------------------------------------------ quick messages
     fun sendMessage(body: String) {
         val s = snap ?: return
+        if (body.isBlank()) return
         val pair = s.activePair
         if (pair == null) { error = "هنوز به هم وصل نیستید"; return }
         val to = if (s.me.role == "her") pair.partnerId else pair.herId
@@ -245,6 +248,26 @@ class AppVM(private val app: Application) : AndroidViewModel(app) {
     fun setLock(v: Boolean) {
         store.lockEnabled = v
         lockEnabled = v
+    }
+
+    // ------------------------------------------------------------------ appearance / saved messages
+    fun setTheme(mode: Int) {
+        store.themeMode = mode
+        themeMode = mode
+    }
+
+    fun saveMessage(text: String) {
+        val t = text.trim()
+        if (t.isEmpty() || t in savedMessages) return
+        val next = (listOf(t) + savedMessages).take(12)
+        store.savedMessages = next
+        savedMessages = next
+    }
+
+    fun deleteSavedMessage(text: String) {
+        val next = savedMessages - text
+        store.savedMessages = next
+        savedMessages = next
     }
 
     // ------------------------------------------------------------------ pairing

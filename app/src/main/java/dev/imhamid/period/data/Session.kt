@@ -22,6 +22,16 @@ class SessionStore(ctx: Context) {
         get() = p.getBoolean("lock", false)
         set(v) = p.edit().putBoolean("lock", v).apply()
 
+    /** 0 = follow system, 1 = light, 2 = dark. */
+    var themeMode: Int
+        get() = p.getInt("theme", 0)
+        set(v) = p.edit().putInt("theme", v).apply()
+
+    /** User-written quick messages (kept on this device). */
+    var savedMessages: List<String>
+        get() = (p.getString("saved_msgs", "") ?: "").split('\u001F').filter { it.isNotBlank() }
+        set(v) = p.edit().putString("saved_msgs", v.joinToString("\u001F")).apply()
+
     val signedIn: Boolean get() = !refresh.isNullOrEmpty() && !uid.isNullOrEmpty()
 
     fun save(r: AuthResponse) {
@@ -35,7 +45,8 @@ class SessionStore(ctx: Context) {
     fun clear() {
         val intro = introSeen
         val lock = lockEnabled
-        p.edit().clear().putBoolean("intro", intro).putBoolean("lock", lock).apply()
+        val theme = themeMode
+        p.edit().clear().putBoolean("intro", intro).putBoolean("lock", lock).putInt("theme", theme).apply()
     }
 
     // ---- notification de-duplication

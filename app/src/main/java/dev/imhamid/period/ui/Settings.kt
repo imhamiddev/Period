@@ -32,6 +32,7 @@ import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Notifications
+import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.WaterDrop
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Switch
@@ -169,6 +170,20 @@ internal fun SettingsTab(vm: AppVM) {
                 }
             }
 
+            // ---------------------------------------------------------------- appearance
+            Reveal(5) {
+                SettingsSection(Icons.Rounded.Palette, "ظاهر") {
+                    Column(Modifier.padding(horizontal = 18.dp, vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Txt("حالت نمایش", 16.sp, FontWeight.Medium)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            listOf("مثل سیستم", "روشن", "تیره").forEachIndexed { i, t ->
+                                Chip(t, vm.themeMode == i, { vm.setTheme(i) })
+                            }
+                        }
+                    }
+                }
+            }
+
             // ---------------------------------------------------------------- security
             Reveal(5) {
                 SettingsSection(Icons.Rounded.Lock, "امنیت") {
@@ -195,7 +210,7 @@ internal fun SettingsTab(vm: AppVM) {
                         PrimaryButton(
                             "خروج از حساب", { vm.logout() }, kind = BtnKind.Light,
                             modifier = Modifier.border(1.dp, C.Line, RoundedCornerShape(29.dp)),
-                            icon = { Icon(Icons.AutoMirrored.Rounded.Logout, null, tint = C.Ink, modifier = Modifier.size(20.dp)) },
+                            icon = { Icon(Icons.AutoMirrored.Rounded.Logout, null, tint = C.Text, modifier = Modifier.size(20.dp)) },
                         )
                     }
                 }
@@ -211,14 +226,14 @@ private fun SettingsSection(icon: ImageVector, title: String, subtitle: String? 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(Modifier.padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(30.dp).clip(RoundedCornerShape(10.dp)).background(C.LimeSoft), contentAlignment = Alignment.Center) {
-                Icon(icon, null, tint = C.Deep, modifier = Modifier.size(17.dp))
+                Icon(icon, null, tint = C.OnSoft, modifier = Modifier.size(17.dp))
             }
             Spacer(Modifier.size(10.dp))
             Txt(title, 15.sp, FontWeight.Medium)
             if (subtitle != null) Txt("  ·  $subtitle", 12.sp, color = C.Muted, maxLines = 1)
         }
         Column(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(26.dp)).background(Color.White)
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(26.dp)).background(C.Surface)
                 .border(1.dp, C.Line, RoundedCornerShape(26.dp)),
             content = content,
         )
@@ -233,7 +248,7 @@ private fun SettingsDivider() {
 @Composable
 private fun RoleBadge(text: String) {
     Box(Modifier.clip(RoundedCornerShape(10.dp)).background(C.LimeSoft).padding(horizontal = 10.dp, vertical = 3.dp)) {
-        Txt(text, 11.sp, FontWeight.Medium, C.Deep)
+        Txt(text, 11.sp, FontWeight.Medium, C.OnSoft)
     }
 }
 
@@ -257,13 +272,13 @@ private fun PairLine(vm: AppVM, p: PairRow, name: String) {
 private fun SettingStepper(label: String, value: Int, min: Int, max: Int, format: (Int) -> String = { Fa.n(it) }, onChange: (Int) -> Unit) {
     Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
         Txt(label, 16.sp, FontWeight.Medium, modifier = Modifier.weight(1f))
-        RoundIcon(Icons.Rounded.ChevronRight, C.Paper, C.Ink) { if (value < max) onChange(value + 1) }
+        RoundIcon(Icons.Rounded.ChevronRight, C.Paper, C.Text) { if (value < max) onChange(value + 1) }
         Box(Modifier.size(76.dp, 40.dp), contentAlignment = Alignment.Center) {
             AnimatedContent(value, transitionSpec = { fadeIn(tween(200)) togetherWith fadeOut(tween(150)) }, label = "sv") { v ->
                 Txt(format(v), 15.sp, FontWeight.Medium)
             }
         }
-        RoundIcon(Icons.Rounded.ChevronLeft, C.Paper, C.Ink) { if (value > min) onChange(value - 1) }
+        RoundIcon(Icons.Rounded.ChevronLeft, C.Paper, C.Text) { if (value > min) onChange(value - 1) }
     }
 }
 
@@ -276,7 +291,7 @@ private fun SettingSwitch(title: String, sub: String, checked: Boolean, onChange
         }
         Switch(
             checked, onChange,
-            colors = SwitchDefaults.colors(checkedTrackColor = C.Green, checkedThumbColor = Color.White, uncheckedTrackColor = Color(0xFFD9DED9), uncheckedThumbColor = Color.White, uncheckedBorderColor = Color.Transparent),
+            colors = SwitchDefaults.colors(checkedTrackColor = C.Green, checkedThumbColor = Color.White, uncheckedTrackColor = C.Track, uncheckedThumbColor = Color.White, uncheckedBorderColor = Color.Transparent),
         )
     }
 }
