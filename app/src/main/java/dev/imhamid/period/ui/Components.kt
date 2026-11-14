@@ -31,6 +31,7 @@ import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -234,6 +235,7 @@ fun Field(
     ltr: Boolean = false,
     imeAction: ImeAction = ImeAction.Next,
     onDone: () -> Unit = {},
+    singleLine: Boolean = true,
 ) {
     var focused by remember { mutableStateOf(false) }
     var show by remember { mutableStateOf(false) }
@@ -246,12 +248,12 @@ fun Field(
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .height(58.dp)
+                    .then(if (singleLine) Modifier.height(58.dp) else Modifier.heightIn(min = 120.dp))
                     .clip(RoundedCornerShape(20.dp))
                     .background(Color.White)
                     .border(width, border, RoundedCornerShape(20.dp))
-                    .padding(horizontal = 18.dp),
-                verticalAlignment = Alignment.CenterVertically,
+                    .padding(horizontal = 18.dp, vertical = if (singleLine) 0.dp else 14.dp),
+                verticalAlignment = if (singleLine) Alignment.CenterVertically else Alignment.Top,
             ) {
                 if (password) {
                     AnimatedContent(
@@ -268,7 +270,8 @@ fun Field(
                     value = value,
                     onValueChange = onValue,
                     modifier = Modifier.weight(1f).onFocusChanged { focused = it.isFocused },
-                    singleLine = true,
+                    singleLine = singleLine,
+                    minLines = if (singleLine) 1 else 4,
                     textStyle = TextStyle(
                         fontFamily = Vazir, fontSize = 16.sp, color = C.Ink,
                         textDirection = if (ltr || password) TextDirection.Ltr else TextDirection.Content,
@@ -315,4 +318,17 @@ fun DropMark(size: Dp, color: Color = Color.White, accent: Color = C.Lime) {
         drawPath(p, color)
         drawCircle(accent, radius = w * 0.1f, center = Offset(w * 0.62f, h * 0.68f))
     }
+}
+
+@Composable
+fun Chip(text: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val bg by animateColorAsState(if (selected) C.Ink else Color.White, tween(220), label = "chipbg")
+    val fg by animateColorAsState(if (selected) Color.White else C.Ink, tween(220), label = "chipfg")
+    val sc by animateFloatAsState(if (selected) 1.05f else 1f, spring(0.45f, 500f), label = "chipsc")
+    Box(
+        modifier.graphicsLayer { scaleX = sc; scaleY = sc }
+            .clip(RoundedCornerShape(20.dp)).background(bg).border(1.dp, C.Line, RoundedCornerShape(20.dp))
+            .pressable(onClick = onClick).padding(horizontal = 14.dp, vertical = 9.dp),
+        contentAlignment = Alignment.Center,
+    ) { Txt(text, 14.sp, color = fg) }
 }

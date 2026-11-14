@@ -18,6 +18,10 @@ class SessionStore(ctx: Context) {
         get() = p.getBoolean("intro", false)
         set(v) = p.edit().putBoolean("intro", v).apply()
 
+    var lockEnabled: Boolean
+        get() = p.getBoolean("lock", false)
+        set(v) = p.edit().putBoolean("lock", v).apply()
+
     val signedIn: Boolean get() = !refresh.isNullOrEmpty() && !uid.isNullOrEmpty()
 
     fun save(r: AuthResponse) {
@@ -30,7 +34,8 @@ class SessionStore(ctx: Context) {
 
     fun clear() {
         val intro = introSeen
-        p.edit().clear().putBoolean("intro", intro).apply()
+        val lock = lockEnabled
+        p.edit().clear().putBoolean("intro", intro).putBoolean("lock", lock).apply()
     }
 
     // ---- notification de-duplication

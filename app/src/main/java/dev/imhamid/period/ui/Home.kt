@@ -40,6 +40,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.material.icons.rounded.BarChart
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -97,9 +105,13 @@ import java.time.temporal.ChronoUnit
 @Composable
 fun HomeScreen(vm: AppVM) {
     var tab by rememberSaveable { mutableIntStateOf(0) }
+    var sheetDay by remember { mutableStateOf<LocalDate?>(null) }
+    var shownDay by remember { mutableStateOf(LocalDate.now()) }
+    val openDay: (LocalDate) -> Unit = { shownDay = it; sheetDay = it }
     val pending = vm.snap?.let { s -> s.pairs.any { it.status == "pending" } } ?: false
-    // light polling while visible (pairing requests, partner updates)
-    LaunchedEffect(Unit) { while (true) { delay(if (pending) 6000 else 30000); vm.refresh() } }
+    // light polling while visible (pairing requests, partner updates, messages)
+    LaunchedEffect(Unit) { while (true) { delay(if (pending) 6000 else 15000); vm.refresh() } }
+    BackHandler(enabled = sheetDay != null) { sheetDay = null }
 
     Box(Modifier.fillMaxSize().background(C.Paper)) {
         AnimatedContent(
@@ -112,18 +124,35 @@ fun HomeScreen(vm: AppVM) {
             label = "tabs",
         ) { t ->
             when (t) {
-                0 -> HomeTab(vm)
-                1 -> CalendarTab(vm)
+                0 -> HomeTab(vm, openDay)
+                1 -> CalendarTab(vm, openDay)
+                2 -> StatsTab(vm)
                 else -> SettingsTab(vm)
             }
         }
         BottomNav(tab, { tab = it }, Modifier.align(Alignment.BottomCenter))
+
+        // day sheet
+        AnimatedVisibility(sheetDay != null, enter = fadeIn(tween(250)), exit = fadeOut(tween(260))) {
+            Box(
+                Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.45f))
+                    .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { sheetDay = null },
+            )
+        }
+        AnimatedVisibility(
+            sheetDay != null,
+            modifier = Modifier.align(Alignment.BottomCenter),
+            enter = slideInVertically(androidx.compose.animation.core.spring(0.85f, 380f)) { it } + fadeIn(tween(200)),
+            exit = slideOutVertically(tween(300)) { it } + fadeOut(tween(220)),
+        ) {
+            DaySheet(vm, shownDay) { sheetDay = null }
+        }
     }
 }
 
 @Composable
 private fun BottomNav(selected: Int, onSelect: (Int) -> Unit, modifier: Modifier) {
-    val items = listOf(Icons.Rounded.Home to "خانه", Icons.Rounded.CalendarMonth to "تقویم", Icons.Rounded.Settings to "تنظیمات")
+    val items = listOf(Icons.Rounded.Home to "خانه", Icons.Rounded.CalendarMonth to "تقویم", Icons.Rounded.BarChart to "آمار", Icons.Rounded.Settings to "تنظیمات")
     var shown by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { delay(300); shown = true }
     val enter by animateFloatAsState(if (shown) 1f else 0f, spring(0.62f, 220f), label = "naventer")
@@ -214,7 +243,7 @@ fun CycleRing(engine: CycleEngine?, ov: Overview?, modifier: Modifier = Modifier
 
 // ============================================================================ home tab
 @Composable
-private fun HomeTab(vm: AppVM) {
+private fun HomeTab(vm: AppVM, onOpenDay: (LocalDate) -> Unit) {
     val s = vm.snap ?: return
     val me = s.me
     val isHer = me.role == "her"
@@ -290,8 +319,10 @@ private fun HomeTab(vm: AppVM) {
             } else if (paused) {
                 Reveal(0) { Card { Txt("$ownerName اشتراک‌گذاری رو موقتاً متوقف کرده؛ وقتی فعالش کنه دوباره اطلاعات می‌رسه.", 15.sp, color = C.Muted) } }
             } else {
+                if ((ov?.lateDays ?: 0) >= 1) Reveal(0) { LateCard(vm, ov!!.lateDays, isHer, ownerName, today) }
                 if (isHer) Reveal(0) { TodayCard(vm, engine, today) }
-                if (!isHer) Reveal(0) {
+                Reveal(1) { MoodCard(vm, today, isHer, ownerName, onOpenDay) }
+                if (!isHer) Reveal(1) {
                     Card {
                         Column {
                             Txt("امروز چه کار کنم؟", 14.sp, color = C.Muted)
@@ -302,11 +333,93 @@ private fun HomeTab(vm: AppVM) {
                 } else if (ov?.hasData == true) Reveal(1) {
                     Card { Column { Txt("برای تو", 14.sp, color = C.Muted); Spacer(Modifier.height(6.dp)); Txt(Fa.herTip(ov.phase), 16.sp) } }
                 }
+                if (s.activePair != null) Reveal(2) { MessagesCard(vm) }
                 if (ov?.hasData == true) Reveal(2) { UpcomingCard(ov) }
                 if (ov?.hasData == true) Reveal(3) { StatsCard(ov, engine!!) }
             }
             if (isHer) Reveal(4) { ShareCard(vm) }
             Spacer(Modifier.height(110.dp))
+        }
+    }
+}
+
+@Composable
+private fun LateCard(vm: AppVM, days: Int, isHer: Boolean, name: String, today: LocalDate) {
+    Card {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(12.dp).clip(CircleShape).background(C.Amber))
+                Spacer(Modifier.size(10.dp))
+                Txt(if (isHer) "پریودت ${Fa.n(days)} روز دیر کرده" else "پریود $name ${Fa.n(days)} روز دیر کرده", 16.sp, FontWeight.Medium)
+            }
+            Txt(
+                if (isHer) "اگه شروع شده ثبتش کن. اگه نه، تغییرات کوچیک چرخه با استرس، خواب یا سفر طبیعیه؛ اگه خیلی طول کشید با پزشک مشورت کن."
+                else "ممکنه استرس یا تغییر برنامه باشه. آروم و مهربون کنارش باش.",
+                14.sp, color = C.Muted,
+            )
+            if (isHer) PrimaryButton("پریودم امروز شروع شد", { vm.toggleDay(today) })
+        }
+    }
+}
+
+@Composable
+private fun MoodCard(vm: AppVM, today: LocalDate, isHer: Boolean, name: String, onOpenDay: (LocalDate) -> Unit) {
+    val s = vm.snap ?: return
+    val dl = s.days[today]
+    Card(Modifier.pressable { onOpenDay(today) }) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Txt(if (isHer) "حال امروز" else "حال امروز $name", 14.sp, color = C.Muted)
+            if (dl?.mood != null || !dl?.symptoms.isNullOrEmpty()) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (dl?.mood != null) {
+                        Txt(Fa.moods[dl.mood - 1], 34.sp, lineHeight = 40.sp)
+                        Spacer(Modifier.size(12.dp))
+                        Column {
+                            Txt(Fa.moodNames[dl.mood - 1], 16.sp, FontWeight.Medium)
+                            if (dl.energy != null) Txt("انرژی ${Fa.energyNames[dl.energy - 1]}", 12.sp, color = C.Muted)
+                        }
+                    }
+                }
+                if (!dl?.symptoms.isNullOrEmpty()) Txt(dl!!.symptoms.joinToString("، ") { Fa.symptomName(it) }, 13.sp, color = C.Muted)
+            } else {
+                Txt(if (isHer) "هنوز ثبت نکردی؛ بزن تا حال، انرژی و علائمت رو ثبت کنی." else "هنوز چیزی ثبت نشده.", 15.sp, color = C.Muted)
+            }
+        }
+    }
+}
+
+@Composable
+private fun MessagesCard(vm: AppVM) {
+    val s = vm.snap ?: return
+    val isHer = s.me.role == "her"
+    val received = s.inbox.filter { it.toId == s.me.id }.take(3)
+    LaunchedEffect(s.inbox) { if (received.any { it.readAt == null }) vm.markRead() }
+    var sent by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(sent) { if (sent != null) { delay(1700); sent = null } }
+    Card {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Txt("پیام‌ها", 14.sp, color = C.Muted)
+            if (received.isEmpty()) Txt("هنوز پیامی نیومده.", 13.sp, color = C.Muted)
+            received.forEach { m ->
+                Row(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(C.LimeSoft).padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Txt(m.body, 15.sp)
+                        Txt(Fa.ago(m.createdAt), 11.sp, color = C.Muted)
+                    }
+                    if (m.readAt == null) Box(Modifier.size(8.dp).clip(CircleShape).background(C.Green))
+                }
+            }
+            Txt(if (isHer) "به پارتنرت خبر بده" else "یه پیام مهربون بفرست", 14.sp, color = C.Muted)
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(if (isHer) Fa.herQuick else Fa.partnerQuick) { txt ->
+                    Chip(if (sent == txt) "ارسال شد ✓" else txt, sent == txt, {
+                        if (sent == null) { sent = txt; vm.sendMessage(txt) }
+                    })
+                }
+            }
         }
     }
 }
@@ -438,7 +551,7 @@ private fun PairRowItem(vm: AppVM, p: PairRow, name: String) {
 }
 
 @Composable
-private fun RoundIcon(icon: androidx.compose.ui.graphics.vector.ImageVector, bg: Color, fg: Color, onClick: () -> Unit) {
+internal fun RoundIcon(icon: androidx.compose.ui.graphics.vector.ImageVector, bg: Color, fg: Color, onClick: () -> Unit) {
     Box(Modifier.size(40.dp).clip(CircleShape).background(bg).pressable(onClick = onClick), contentAlignment = Alignment.Center) {
         Icon(icon, null, tint = fg, modifier = Modifier.size(20.dp))
     }
@@ -471,7 +584,7 @@ private fun ConnectCard(vm: AppVM, pairs: List<PairRow>) {
 
 // ============================================================================ calendar tab
 @Composable
-private fun CalendarTab(vm: AppVM) {
+private fun CalendarTab(vm: AppVM, onOpenDay: (LocalDate) -> Unit) {
     val s = vm.snap ?: return
     val isHer = s.me.role == "her"
     val owner = s.owner
@@ -524,7 +637,7 @@ private fun CalendarTab(vm: AppVM) {
                                 for (c in 0 until 7) {
                                     val i = r * 7 + c - lead
                                     Box(Modifier.weight(1f).aspectRatio(1f)) {
-                                        if (i in 0 until l) DayCell(f.plusDays(i.toLong()), today, engine, isHer) { vm.toggleDay(it) }
+                                        if (i in 0 until l) DayCell(f.plusDays(i.toLong()), today, engine, s.days) { onOpenDay(it) }
                                     }
                                 }
                             }
@@ -541,7 +654,8 @@ private fun CalendarTab(vm: AppVM) {
                 Legend(C.AmberSoft, "PMS")
                 Legend(C.LimeSoft, "پنجره‌ی باروری")
                 Legend(C.Lime, "تخمک‌گذاری")
-                if (isHer) Txt("برای ثبت یا حذف پریود، روی روز بزن.", 12.sp, color = C.Muted)
+                Legend(C.Ink.copy(alpha = 0.55f), "حال یا علائم ثبت شده")
+                Txt("روی هر روز بزن تا جزئیاتش رو ببینی.", 12.sp, color = C.Muted)
             }
         }
         Spacer(Modifier.height(120.dp))
@@ -558,7 +672,7 @@ private fun Legend(color: Color, label: String) {
 }
 
 @Composable
-private fun DayCell(d: LocalDate, today: LocalDate, engine: CycleEngine?, isHer: Boolean, onTap: (LocalDate) -> Unit) {
+private fun DayCell(d: LocalDate, today: LocalDate, engine: CycleEngine?, days: Map<LocalDate, dev.imhamid.period.data.DayLog>, onTap: (LocalDate) -> Unit) {
     val logged = engine?.isLogged(d) == true
     val phase = engine?.phaseOn(d)
     val predictedPeriod = engine?.isPredictedPeriod(d) == true
@@ -579,10 +693,13 @@ private fun DayCell(d: LocalDate, today: LocalDate, engine: CycleEngine?, isHer:
     Box(
         Modifier.fillMaxSize().scale(sc).clip(CircleShape).background(bg)
             .then(if (isToday) Modifier.border(2.dp, C.Ink, CircleShape) else Modifier)
-            .then(if (isHer && !future) Modifier.pressable { onTap(d) } else Modifier),
+            .then(if (!future) Modifier.pressable { onTap(d) } else Modifier),
         contentAlignment = Alignment.Center,
     ) {
         Txt(Fa.jalaliDay(d), 14.sp, if (logged || isToday) FontWeight.Bold else FontWeight.Normal, if (future && bg == Color.Transparent) C.Muted else C.Ink)
+        if (days[d]?.let { it.mood != null || it.symptoms.isNotEmpty() } == true) {
+            Box(Modifier.align(Alignment.BottomCenter).padding(bottom = 3.dp).size(4.dp).clip(CircleShape).background(C.Ink.copy(alpha = 0.55f)))
+        }
     }
 }
 
@@ -643,10 +760,34 @@ private fun SettingsTab(vm: AppVM) {
             }
             Reveal(4) {
                 Card {
-                    SettingSwitch("نوتیفیکیشن", if (isHer) "یادآوری PMS و پریود" else "خبر PMS و پریود پارتنرت", me.notifyEnabled) { v -> vm.patch { put("notify_enabled", v) } }
+                    Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
+                        SettingSwitch("نوتیفیکیشن", if (isHer) "یادآوری PMS و پریود" else "خبر PMS و پریود پارتنرت", me.notifyEnabled) { v -> vm.patch { put("notify_enabled", v) } }
+                        androidx.compose.animation.AnimatedVisibility(me.notifyEnabled) {
+                            Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
+                                SettingStepper("ساعت یادآوری", me.notifyHour, 5, 23, { Fa.hour(it) }) { v -> vm.patch { put("notify_hour", v) } }
+                                SettingSwitch("PMS", "یک روز قبل و روز شروع", me.notifyPms) { v -> vm.patch { put("notify_pms", v) } }
+                                SettingSwitch("پریود", "دو روز قبل و روز پریود", me.notifyPeriod) { v -> vm.patch { put("notify_period", v) } }
+                                SettingSwitch("تخمک‌گذاری", "روز تخمین‌زده‌شده", me.notifyOvulation) { v -> vm.patch { put("notify_ovulation", v) } }
+                                SettingSwitch("تأخیر پریود", "اگه از موعد دیرتر شد", me.notifyLate) { v -> vm.patch { put("notify_late", v) } }
+                            }
+                        }
+                    }
                 }
             }
-            if (!isHer && s.pairs.isNotEmpty()) Reveal(5) {
+            Reveal(5) {
+                val ctx = LocalContext.current
+                Card {
+                    SettingSwitch("قفل برنامه", "اثر انگشت، Face یا قفل گوشی", vm.lockEnabled) { v ->
+                        val act = ctx.findFragmentActivity()
+                        if (act == null || !Biometrics.available(ctx)) {
+                            vm.error = "اول روی گوشی قفل صفحه یا اثر انگشت تنظیم کن"
+                        } else {
+                            Biometrics.prompt(act, if (v) "فعال‌سازی قفل" else "غیرفعال‌سازی قفل", { vm.setLock(v) })
+                        }
+                    }
+                }
+            }
+            if (!isHer && s.pairs.isNotEmpty()) Reveal(6) {
                 Card {
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Txt("اتصال", 14.sp, color = C.Muted)
@@ -681,13 +822,13 @@ private fun SettingsTab(vm: AppVM) {
 }
 
 @Composable
-private fun SettingStepper(label: String, value: Int, min: Int, max: Int, onChange: (Int) -> Unit) {
+private fun SettingStepper(label: String, value: Int, min: Int, max: Int, format: (Int) -> String = { Fa.n(it) }, onChange: (Int) -> Unit) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Txt(label, 16.sp, modifier = Modifier.weight(1f))
         RoundIcon(Icons.Rounded.ChevronRight, C.Paper, C.Ink) { if (value < max) onChange(value + 1) }
-        Box(Modifier.size(52.dp, 40.dp), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(64.dp, 40.dp), contentAlignment = Alignment.Center) {
             AnimatedContent(value, transitionSpec = { fadeIn(tween(200)) togetherWith fadeOut(tween(150)) }, label = "sv") { v ->
-                Txt(Fa.n(v), 18.sp, FontWeight.Medium)
+                Txt(format(v), 18.sp, FontWeight.Medium)
             }
         }
         RoundIcon(Icons.Rounded.ChevronLeft, C.Paper, C.Ink) { if (value > min) onChange(value - 1) }

@@ -12,7 +12,11 @@ import dev.imhamid.period.data.Api
 import dev.imhamid.period.data.ApiException
 import dev.imhamid.period.data.Repo
 import dev.imhamid.period.data.SessionStore
+import dev.imhamid.period.data.DayLog
+import dev.imhamid.period.data.Note
 import dev.imhamid.period.data.Snapshot
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import dev.imhamid.period.notify.SyncWorker
 import dev.imhamid.period.update.UpdateState
 import dev.imhamid.period.update.Updater
@@ -34,6 +38,10 @@ class AppVM(private val app: Application) : AndroidViewModel(app) {
     var busy by mutableStateOf(false)
     var error by mutableStateOf<String?>(null)
     var update by mutableStateOf<UpdateState>(UpdateState.None)
+    var lockEnabled by mutableStateOf(store.lockEnabled)
+
+    private val dayJobs = mutableMapOf<LocalDate, Job>()
+    private val noteJobs = mutableMapOf<LocalDate, Job>()
 
     val route: Route
         get() {
@@ -168,7 +176,7 @@ class AppVM(private val app: Application) : AndroidViewModel(app) {
         if (s.me.role != "her" || d.isAfter(LocalDate.now())) return
         val on = d !in s.logs
         val newLogs = if (on) s.logs + d else s.logs - d
-        snap = Snapshot(s.me, s.pairs, s.others, s.owner, newLogs)
+        snap = s.with(logs = newLogs)
         viewModelScope.launch {
             try {
                 repo.setDay(d, on)
@@ -177,6 +185,56 @@ class AppVM(private val app: Application) : AndroidViewModel(app) {
                 fail(e)
             }
         }
+    }
+
+    // ------------------------------------------------------------------ mood / symptoms / notes
+    fun saveDay(day: LocalDate, mood: Int?, energy: Int?, symptoms: List<String>) {
+        val s = snap ?: return
+        if (s.me.role != "her") return
+        val dl = DayLog(s.me.id, day.toString(), mood, energy, symptoms)
+        snap = s.with(days = s.days + (day to dl))
+        dayJobs[day]?.cancel()
+        dayJobs[day] = viewModelScope.launch {
+            delay(450)
+            try { repo.upsertDayLog(dl) } catch (e: Exception) { fail(e) }
+        }
+    }
+
+    fun saveNote(day: LocalDate, text: String, shared: Boolean) {
+        val s = snap ?: return
+        if (s.me.role != "her") return
+        val body = text.trim()
+        snap = if (body.isEmpty()) s.with(notes = s.notes - day) else s.with(notes = s.notes + (day to Note(s.me.id, day.toString(), body, shared)))
+        noteJobs[day]?.cancel()
+        noteJobs[day] = viewModelScope.launch {
+            try {
+                if (body.isEmpty()) repo.deleteNote(day) else repo.upsertNote(Note(s.me.id, day.toString(), body, shared))
+            } catch (e: Exception) { fail(e) }
+        }
+    }
+
+    // ------------------------------------------------------------------ quick messages
+    fun sendMessage(body: String) {
+        val s = snap ?: return
+        val pair = s.activePair
+        if (pair == null) { error = "هنوز به هم وصل نیستید"; return }
+        val to = if (s.me.role == "her") pair.partnerId else pair.herId
+        viewModelScope.launch {
+            try { repo.sendMessage(pair.id, to, body); load() } catch (e: Exception) { fail(e) }
+        }
+    }
+
+    fun markRead() {
+        val s = snap ?: return
+        val ids = s.inbox.filter { it.toId == s.me.id && it.readAt == null }.map { it.id }
+        if (ids.isEmpty()) return
+        viewModelScope.launch { runCatching { repo.markRead(ids) }; load() }
+    }
+
+    // ------------------------------------------------------------------ app lock
+    fun setLock(v: Boolean) {
+        store.lockEnabled = v
+        lockEnabled = v
     }
 
     // ------------------------------------------------------------------ pairing

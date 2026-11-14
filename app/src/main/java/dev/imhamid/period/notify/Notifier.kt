@@ -16,6 +16,7 @@ import dev.imhamid.period.R
 import dev.imhamid.period.data.SessionStore
 import dev.imhamid.period.data.Snapshot
 import dev.imhamid.period.engine.CycleEngine
+import dev.imhamid.period.engine.EventType
 import dev.imhamid.period.ui.Fa
 import java.time.LocalDate
 import java.time.LocalTime
@@ -55,11 +56,12 @@ object Notifier {
 
     /** Called by the background worker with fresh data. */
     fun process(ctx: Context, store: SessionStore, snap: Snapshot) {
-        if (!snap.me.notifyEnabled) return
+        val me = snap.me
+        if (!me.notifyEnabled) return
         val today = LocalDate.now()
 
         // Pending connection request → tell her right away (any hour).
-        if (snap.me.role == "her") {
+        if (me.role == "her") {
             snap.pairs.filter { it.status == "pending" }.forEach { p ->
                 val key = "req-${p.id}"
                 if (!store.wasSent(key)) {
@@ -70,18 +72,34 @@ object Notifier {
             }
         }
 
-        // Cycle events show up from 09:00.
-        if (LocalTime.now().hour < 9) return
+        // Quick messages → immediately.
+        snap.inbox.filter { it.toId == me.id && it.readAt == null }.forEach { m ->
+            val key = "msg-${m.id}"
+            if (!store.wasSent(key)) {
+                val from = snap.others[m.fromId]?.name?.takeIf { it.isNotBlank() } ?: "پیام جدید"
+                post(ctx, key.hashCode(), "پیام از $from", m.body)
+                store.markSent(key)
+            }
+        }
+
+        // Cycle events show up from the user's chosen hour.
+        if (LocalTime.now().hour < me.notifyHour) return
         val owner = snap.owner ?: return
-        if (!owner.shareEnabled && snap.me.role == "partner") return
+        if (!owner.shareEnabled && me.role == "partner") return
         val engine = CycleEngine(
             today, snap.logs, owner.cycleLength, owner.periodLength, owner.lutealLength, owner.pmsDays,
         )
-        val forHer = snap.me.role == "her"
+        val forHer = me.role == "her"
         val herName = owner.name?.takeIf { it.isNotBlank() } ?: "پارتنرت"
         engine.dueEvents().forEach { ev ->
+            val allowed = when (ev) {
+                EventType.PMS_TOMORROW, EventType.PMS_STARTS -> me.notifyPms
+                EventType.PERIOD_SOON, EventType.PERIOD_TODAY -> me.notifyPeriod
+                EventType.OVULATION -> me.notifyOvulation
+                EventType.PERIOD_LATE -> me.notifyLate
+            }
             val key = "${ev.name}-$today"
-            if (!store.wasSent(key)) {
+            if (allowed && !store.wasSent(key)) {
                 val (t, b) = Fa.notif(ev, herName, forHer)
                 post(ctx, key.hashCode(), t, b)
                 store.markSent(key)

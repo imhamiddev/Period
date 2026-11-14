@@ -14,7 +14,7 @@ class PeriodApp : Application() {
     override fun onCreate() {
         super.onCreate()
         Notifier.createChannel(this)
-        val req = PeriodicWorkRequestBuilder<SyncWorker>(2, TimeUnit.HOURS)
+        val req = PeriodicWorkRequestBuilder<SyncWorker>(15, TimeUnit.MINUTES)
             .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
             .build()
         WorkManager.getInstance(this).enqueueUniquePeriodicWork("sync", ExistingPeriodicWorkPolicy.KEEP, req)

@@ -19,7 +19,7 @@ import kotlin.math.sqrt
  */
 enum class Phase { MENSTRUAL, FOLLICULAR, FERTILE, OVULATION, LUTEAL, PMS }
 
-enum class EventType { PMS_TOMORROW, PMS_STARTS, PERIOD_SOON, PERIOD_TODAY, OVULATION }
+enum class EventType { PMS_TOMORROW, PMS_STARTS, PERIOD_SOON, PERIOD_TODAY, OVULATION, PERIOD_LATE }
 
 data class Period(val start: LocalDate, val end: LocalDate) {
     val length: Int get() = ChronoUnit.DAYS.between(start, end).toInt() + 1
@@ -167,6 +167,7 @@ class CycleEngine(
         o.daysToPms?.let { if (it == 1) out += EventType.PMS_TOMORROW; if (it == 0) out += EventType.PMS_STARTS }
         o.daysToPeriod?.let { if (it == 2) out += EventType.PERIOD_SOON; if (it == 0) out += EventType.PERIOD_TODAY }
         if (o.daysToOvulation == 0) out += EventType.OVULATION
+        if (o.lateDays == 2 || o.lateDays == 5) out += EventType.PERIOD_LATE
         return out
     }
 

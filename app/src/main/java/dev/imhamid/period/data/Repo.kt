@@ -113,6 +113,49 @@ class Repo(private val store: SessionStore) {
         authed("DELETE", "/rest/v1/pairs?id=eq.$pairId")
     }
 
+    // ------------------------------------------------------------------ mood / notes / messages
+    suspend fun dayLogs(userId: String): Map<LocalDate, DayLog> {
+        val s = authed("GET", "/rest/v1/daily_logs?user_id=eq.$userId&select=*&order=day.desc&limit=400")
+        return json.decodeFromString(ListSerializer(DayLog.serializer()), s).associateBy { LocalDate.parse(it.day) }
+    }
+
+    suspend fun notes(userId: String): Map<LocalDate, Note> {
+        val s = authed("GET", "/rest/v1/notes?user_id=eq.$userId&select=*&order=day.desc&limit=200")
+        return json.decodeFromString(ListSerializer(Note.serializer()), s).associateBy { LocalDate.parse(it.day) }
+    }
+
+    suspend fun messages(): List<Message> {
+        val s = authed("GET", "/rest/v1/messages?select=*&order=created_at.desc&limit=30")
+        return json.decodeFromString(ListSerializer(Message.serializer()), s)
+    }
+
+    suspend fun upsertDayLog(d: DayLog) {
+        authed("POST", "/rest/v1/daily_logs?on_conflict=user_id,day", json.encodeToString(DayLog.serializer(), d),
+            mapOf("Prefer" to "resolution=merge-duplicates,return=minimal"))
+    }
+
+    suspend fun upsertNote(n: Note) {
+        authed("POST", "/rest/v1/notes?on_conflict=user_id,day", json.encodeToString(Note.serializer(), n),
+            mapOf("Prefer" to "resolution=merge-duplicates,return=minimal"))
+    }
+
+    suspend fun deleteNote(day: LocalDate) {
+        authed("DELETE", "/rest/v1/notes?user_id=eq.$uid&day=eq.$day")
+    }
+
+    suspend fun sendMessage(pairId: String, toId: String, body: String) {
+        val b = buildJsonObject {
+            put("pair_id", pairId); put("from_id", uid); put("to_id", toId); put("kind", "quick"); put("body", body)
+        }.toString()
+        authed("POST", "/rest/v1/messages", b, mapOf("Prefer" to "return=minimal"))
+    }
+
+    suspend fun markRead(ids: List<String>) {
+        if (ids.isEmpty()) return
+        val b = buildJsonObject { put("read_at", java.time.Instant.now().toString()) }.toString()
+        authed("PATCH", "/rest/v1/messages?id=in.(${ids.joinToString(",")})", b, mapOf("Prefer" to "return=minimal"))
+    }
+
     // ------------------------------------------------------------------ snapshot (shared by UI + worker)
     suspend fun snapshot(): Snapshot {
         val me = myProfile()
@@ -120,14 +163,23 @@ class Repo(private val store: SessionStore) {
         val ids = pairs.map { if (me.role == "her") it.partnerId else it.herId }.distinct()
         val others = profilesIn(ids)
         return when (me.role) {
-            "her" -> Snapshot(me, pairs, others, me, logs(me.id))
+            "her" -> Snapshot(me, pairs, others, me, logs(me.id)).extras()
             "partner" -> {
                 val active = pairs.firstOrNull { it.status == "active" }
                 val owner = active?.let { others[it.herId] }
                 val logs = if (owner != null) runCatching { logs(owner.id) }.getOrDefault(emptySet()) else emptySet()
-                Snapshot(me, pairs, others, owner, logs)
+                Snapshot(me, pairs, others, owner, logs).extras()
             }
             else -> Snapshot(me, pairs, others, null, emptySet())
         }
+    }
+
+    /** Optional data (tolerates a missing migration). */
+    private suspend fun Snapshot.extras(): Snapshot {
+        val oid = owner?.id
+        val d = if (oid != null) runCatching { dayLogs(oid) }.getOrDefault(emptyMap()) else emptyMap()
+        val n = if (oid != null) runCatching { notes(oid) }.getOrDefault(emptyMap()) else emptyMap()
+        val m = runCatching { messages() }.getOrDefault(emptyList())
+        return with(days = d, notes = n, inbox = m)
     }
 }

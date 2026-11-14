@@ -3,7 +3,8 @@ package dev.imhamid.period
 import android.Manifest
 import android.os.Build
 import android.os.Bundle
-import androidx.activity.ComponentActivity
+import androidx.fragment.app.FragmentActivity
+import android.os.SystemClock
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -61,16 +62,35 @@ import dev.imhamid.period.ui.Txt
 import dev.imhamid.period.ui.UpdateBanner
 import kotlinx.coroutines.delay
 
-class MainActivity : ComponentActivity() {
+class MainActivity : FragmentActivity() {
     private val vm: AppVM by viewModels()
+    private var locked by androidx.compose.runtime.mutableStateOf(false)
+    private var stoppedAt = 0L
+
+    private fun unlock() {
+        dev.imhamid.period.ui.Biometrics.prompt(this, "باز کردن Luna", { locked = false })
+    }
+
+    override fun onStart() {
+        super.onStart()
+        if (vm.lockEnabled && stoppedAt > 0 && SystemClock.elapsedRealtime() - stoppedAt > 15_000 &&
+            dev.imhamid.period.ui.Biometrics.available(this)
+        ) locked = true
+    }
+
+    override fun onStop() {
+        super.onStop()
+        stoppedAt = SystemClock.elapsedRealtime()
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        locked = vm.lockEnabled && dev.imhamid.period.ui.Biometrics.available(this)
         setContent {
             PeriodTheme {
                 CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
-                    Root(vm)
+                    Root(vm, locked) { unlock() }
                 }
             }
         }
@@ -78,13 +98,14 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-private fun Root(vm: AppVM) {
+private fun Root(vm: AppVM, locked: Boolean, onUnlock: () -> Unit) {
     val notifPerm = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
     val route = vm.route
     LaunchedEffect(route) {
         if (route == Route.Home && Build.VERSION.SDK_INT >= 33) notifPerm.launch(Manifest.permission.POST_NOTIFICATIONS)
     }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { vm.checkUpdate() }
+    LaunchedEffect(locked) { if (locked) onUnlock() }
     LaunchedEffect(vm.error) {
         if (vm.error != null) { delay(3600); vm.error = null }
     }
@@ -123,6 +144,12 @@ private fun Root(vm: AppVM) {
                 }
             }
         }
+
+        AnimatedVisibility(
+            visible = locked,
+            enter = fadeIn(tween(150)),
+            exit = fadeOut(tween(450)) + androidx.compose.animation.scaleOut(tween(450), targetScale = 1.06f),
+        ) { dev.imhamid.period.ui.LockScreen(onUnlock) }
 
         // error toast
         AnimatedVisibility(
