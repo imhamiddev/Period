@@ -172,7 +172,7 @@ class Repo(private val store: SessionStore) {
             "partner" -> {
                 val active = pairs.firstOrNull { it.status == "active" }
                 val owner = active?.let { others[it.herId] }
-                val logs = if (owner != null) runCatching { logs(owner.id) }.getOrDefault(emptySet()) else emptySet()
+                val logs = if (owner != null) optional<Set<LocalDate>>(emptySet()) { logs(owner.id) } else emptySet()
                 Snapshot(me, pairs, others, owner, logs).extras()
             }
             else -> Snapshot(me, pairs, others, null, emptySet())
@@ -180,11 +180,37 @@ class Repo(private val store: SessionStore) {
     }
 
     /** Optional data (tolerates a missing migration). */
+    /** Optional parts of the snapshot: a real failure falls back to [default], but "offline" is passed on. */
+    private suspend fun <T> optional(default: T, block: suspend () -> T): T = try {
+        block()
+    } catch (e: ApiException) {
+        if (e.code == -1) throw e else default
+    } catch (e: Exception) {
+        default
+    }
+
     private suspend fun Snapshot.extras(): Snapshot {
         val oid = owner?.id
-        val d = if (oid != null) runCatching { dayLogs(oid) }.getOrDefault(emptyMap()) else emptyMap()
-        val n = if (oid != null) runCatching { notes(oid) }.getOrDefault(emptyMap()) else emptyMap()
-        val m = runCatching { messages() }.getOrDefault(emptyList())
+        val d = if (oid != null) optional<Map<LocalDate, DayLog>>(emptyMap()) { dayLogs(oid) } else emptyMap()
+        val n = if (oid != null) optional<Map<LocalDate, Note>>(emptyMap()) { notes(oid) } else emptyMap()
+        val m = optional<List<Message>>(emptyList()) { messages() }
         return with(days = d, notes = n, inbox = m)
+    }
+
+    // ---- offline queue
+    fun enqueue(op: PendingOp) = PendingQueue.add(store, op)
+    fun pendingCount(): Int = PendingQueue.read(store).size
+    suspend fun flush(): FlushResult = PendingQueue.flush(store) { execute(it) }
+
+    private suspend fun execute(op: PendingOp) {
+        when (op.type) {
+            "day" -> setDay(LocalDate.parse(op.day!!), op.on)
+            "days" -> addDays(op.days.map { LocalDate.parse(it) })
+            "daylog" -> upsertDayLog(json.decodeFromString(DayLog.serializer(), op.payload!!))
+            "note" -> upsertNote(json.decodeFromString(Note.serializer(), op.payload!!))
+            "delnote" -> deleteNote(LocalDate.parse(op.day!!))
+            "profile" -> updateProfile(json.parseToJsonElement(op.payload!!) as JsonObject)
+            "msg" -> sendMessage(op.pairId!!, op.toId!!, op.payload!!)
+        }
     }
 }

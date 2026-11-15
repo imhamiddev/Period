@@ -95,5 +95,7 @@ class Snapshot(
         inbox: List<Message> = this.inbox,
     ) = Snapshot(me, pairs, others, owner, logs, days, notes, inbox)
 
+    fun withMe(m: Profile) = Snapshot(m, pairs, others, if (owner?.id == m.id) m else owner, logs, days, notes, inbox)
+
     val activePair: PairRow? get() = pairs.firstOrNull { it.status == "active" }
 }

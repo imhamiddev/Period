@@ -228,6 +228,15 @@ internal fun SettingsTab(vm: AppVM) {
                             Txt("نسخه‌ی برنامه", 16.sp, modifier = Modifier.weight(1f))
                             Txt(Fa.digits(BuildConfig.VERSION_NAME), 15.sp, FontWeight.Medium, C.Green)
                         }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Txt("همگام‌سازی", 16.sp, modifier = Modifier.weight(1f))
+                            Txt(
+                                if (vm.offline) "آفلاین" else if (vm.pendingChanges > 0) "در حال ارسال" else "به‌روز",
+                                15.sp, FontWeight.Medium, if (vm.offline) C.Amber else C.Green,
+                            )
+                        }
+                        if (vm.pendingChanges > 0) Txt("${Fa.n(vm.pendingChanges)} تغییر روی گوشی منتظر ارسال به سرور", 12.sp, color = C.Muted)
+                        PrimaryButton("همگام‌سازی حالا", { vm.refresh() }, kind = BtnKind.Light, modifier = Modifier.border(1.dp, C.Line, RoundedCornerShape(29.dp)))
                         PrimaryButton("بررسی آپدیت", { vm.checkUpdate() }, kind = BtnKind.Lime)
                         PrimaryButton(
                             "خروج از حساب", { vm.logout() }, kind = BtnKind.Light,

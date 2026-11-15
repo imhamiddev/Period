@@ -22,6 +22,15 @@ class SessionStore(ctx: Context) {
         get() = p.getBoolean("lock", false)
         set(v) = p.edit().putBoolean("lock", v).apply()
 
+    /** Offline cache of the last snapshot and the queue of unsent changes (wiped on sign-out). */
+    var cacheJson: String?
+        get() = p.getString("cache", null)
+        set(v) = p.edit().putString("cache", v).apply()
+
+    var queueJson: String
+        get() = p.getString("queue", "[]") ?: "[]"
+        set(v) = p.edit().putString("queue", v).apply()
+
     /** 0 = follow system, 1 = light, 2 = dark. */
     var themeMode: Int
         get() = p.getInt("theme", 0)
