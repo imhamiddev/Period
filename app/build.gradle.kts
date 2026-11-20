@@ -32,19 +32,30 @@ android {
         buildConfigField("String", "GITHUB_REPO", "\"imhamiddev/Period\"")
     }
 
+    // Release signing: the keystore and its passwords never live in the repo.
+    //   KEYSTORE_FILE     path to the .jks (defaults to signing/luna.jks, which is git-ignored)
+    //   KEYSTORE_PASSWORD, KEY_ALIAS (default "luna"), KEY_PASSWORD (defaults to KEYSTORE_PASSWORD)
+    // Without them (e.g. a fresh clone) release builds fall back to the debug key, so they still build
+    // but can't be installed over a properly signed release.
     signingConfigs {
         create("release") {
-            storeFile = rootProject.file("signing/luna.jks")
-            storePassword = env("KEYSTORE_PASSWORD", "lJXwsC4QlP54Hgaj0UCs")
-            keyAlias = env("KEY_ALIAS", "luna")
-            keyPassword = env("KEY_PASSWORD", "lJXwsC4QlP54Hgaj0UCs")
+            val ks = env("KEYSTORE_FILE").takeIf { it.isNotBlank() }?.let { file(it) }
+                ?: rootProject.file("signing/luna.jks")
+            val pass = env("KEYSTORE_PASSWORD")
+            if (ks.exists() && pass.isNotBlank()) {
+                storeFile = ks
+                storePassword = pass
+                keyAlias = env("KEY_ALIAS", "luna")
+                keyPassword = env("KEY_PASSWORD", pass)
+            }
         }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
-            signingConfig = signingConfigs.getByName("release")
+            val rel = signingConfigs.getByName("release")
+            signingConfig = if (rel.storeFile != null) rel else signingConfigs.getByName("debug")
         }
     }
 
@@ -54,6 +65,7 @@ android {
     }
     kotlinOptions { jvmTarget = "17" }
     buildFeatures { compose = true; buildConfig = true }
+    testOptions { unitTests.isReturnDefaultValues = true }
     packaging { resources.excludes += "/META-INF/{AL2.0,LGPL2.1}" }
 }
 
@@ -74,4 +86,6 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
+
+    testImplementation("junit:junit:4.13.2")
 }
