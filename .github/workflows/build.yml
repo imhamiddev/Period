@@ -23,7 +23,7 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v6
         with:
-          gradle-version: '8.9'
+          gradle-version: '8.13'
 
       - name: Compute version
         run: |
@@ -34,7 +34,9 @@ jobs:
           fi
 
       - name: Unit tests
-        run: gradle :app:testDebugUnitTest --no-daemon
+        run: |
+          set -o pipefail
+          gradle :app:testDebugUnitTest --no-daemon 2>&1 | tee build.log
 
       # The signing key lives only in GitHub Secrets (KEYSTORE_BASE64, KEYSTORE_PASSWORD,
       # optionally KEY_ALIAS / KEY_PASSWORD). Tagged releases refuse to build without it.
