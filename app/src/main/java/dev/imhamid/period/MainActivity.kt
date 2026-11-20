@@ -42,6 +42,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
@@ -158,6 +159,21 @@ private fun Root(vm: AppVM, locked: Boolean, onUnlock: () -> Unit) {
             enter = fadeIn(tween(150)),
             exit = fadeOut(tween(450)) + androidx.compose.animation.scaleOut(tween(450), targetScale = 1.06f),
         ) { dev.imhamid.period.ui.LockScreen(onUnlock) }
+
+        // offline pill
+        AnimatedVisibility(
+            visible = vm.offline && vm.signedIn && vm.snap != null,
+            modifier = Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(top = if (bannerVisible) 44.dp else 4.dp),
+            enter = fadeIn(tween(300)),
+            exit = fadeOut(tween(300)),
+        ) {
+            Box(Modifier.clip(RoundedCornerShape(14.dp)).background(C.AmberSoft).padding(horizontal = 12.dp, vertical = 4.dp)) {
+                Txt(
+                    if (vm.pendingChanges > 0) "آفلاین · ${dev.imhamid.period.ui.Fa.n(vm.pendingChanges)} تغییر منتظر ارسال" else "آفلاین · همه‌چیز روی گوشی ذخیره می‌شه",
+                    11.sp, FontWeight.Medium, C.Text,
+                )
+            }
+        }
 
         // error toast
         AnimatedVisibility(

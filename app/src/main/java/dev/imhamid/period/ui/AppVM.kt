@@ -1,6 +1,8 @@
 package dev.imhamid.period.ui
 
 import android.app.Application
+import android.net.ConnectivityManager
+import android.net.Network
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -17,6 +19,9 @@ import dev.imhamid.period.data.DayLog
 import dev.imhamid.period.data.PairRow
 import dev.imhamid.period.notify.LiveService
 import dev.imhamid.period.data.Note
+import dev.imhamid.period.data.Offline
+import dev.imhamid.period.data.PendingOp
+import dev.imhamid.period.data.patched
 import dev.imhamid.period.data.Snapshot
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -25,6 +30,7 @@ import dev.imhamid.period.update.UpdateState
 import dev.imhamid.period.update.Updater
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonObjectBuilder
+import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import java.time.LocalDate
 
@@ -48,6 +54,13 @@ class AppVM(private val app: Application) : AndroidViewModel(app) {
     var pairLabels by mutableStateOf(store.pairLabels)
     var liveNotify by mutableStateOf(store.liveNotify)
 
+    /** True while the server cannot be reached; everything keeps working from the saved copy. */
+    var offline by mutableStateOf(false)
+
+    /** Changes waiting to be sent to the server. */
+    var pendingChanges by mutableIntStateOf(repoPending())
+    private var netCallback: ConnectivityManager.NetworkCallback? = null
+
     private val dayJobs = mutableMapOf<LocalDate, Job>()
     private val noteJobs = mutableMapOf<LocalDate, Job>()
 
@@ -65,7 +78,12 @@ class AppVM(private val app: Application) : AndroidViewModel(app) {
             }
         }
 
+    private fun repoPending(): Int = Repo(store).pendingCount()
+
     init {
+        // open instantly from the saved copy, then refresh in the background
+        if (signedIn) Offline.load(store)?.let { snap = it; booting = false }
+        watchNetwork()
         viewModelScope.launch {
             if (signedIn) {
                 load()
@@ -85,14 +103,62 @@ class AppVM(private val app: Application) : AndroidViewModel(app) {
     private fun logoutLocal() {
         snap = null
         signedIn = false
+        offline = false
+        pendingChanges = 0
     }
 
+    /** Sends queued changes, then refreshes everything. Offline: keeps the saved copy. */
     suspend fun load() {
         try {
-            snap = repo.snapshot()
+            val r = repo.flush()
+            pendingChanges = repo.pendingCount()
+            r.dropped?.let { fail(it) }
+            if (r.blocked != null) {
+                offline = r.blocked.code == -1
+                if (snap == null) snap = Offline.load(store)
+                return
+            }
+            val s = repo.snapshot()
+            snap = s
+            offline = false
+            Offline.save(store, s)
+        } catch (e: Exception) {
+            if (e is ApiException && e.code == -1) offline = true else fail(e)
+            if (snap == null) snap = Offline.load(store)
+        }
+    }
+
+    /** Queue a change, update the saved copy, and try to send it. */
+    private fun queue(op: PendingOp) {
+        repo.enqueue(op)
+        pendingChanges = repo.pendingCount()
+        snap?.let { Offline.save(store, it) }
+    }
+
+    private suspend fun flushNow() {
+        try {
+            val r = repo.flush()
+            pendingChanges = repo.pendingCount()
+            if (r.blocked == null) offline = false else if (r.blocked.code == -1) offline = true
+            if (r.dropped != null) { fail(r.dropped); load() }
         } catch (e: Exception) {
             fail(e)
         }
+    }
+
+    private fun watchNetwork() {
+        val cm = app.getSystemService(ConnectivityManager::class.java) ?: return
+        val cb = object : ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: Network) {
+                if (store.signedIn) viewModelScope.launch { load() }
+            }
+        }
+        runCatching { cm.registerDefaultNetworkCallback(cb) }.onSuccess { netCallback = cb }
+    }
+
+    override fun onCleared() {
+        netCallback?.let { cb -> runCatching { app.getSystemService(ConnectivityManager::class.java)?.unregisterNetworkCallback(cb) } }
+        super.onCleared()
     }
 
     fun refresh() = viewModelScope.launch { load() }
@@ -137,16 +203,13 @@ class AppVM(private val app: Application) : AndroidViewModel(app) {
 
     // ------------------------------------------------------------------ profile
     fun patch(block: JsonObjectBuilder.() -> Unit) {
+        val s = snap ?: return
+        val o = buildJsonObject(block)
+        snap = s.withMe(s.me.patched(o))
+        queue(PendingOp("profile", payload = o.toString()))
         viewModelScope.launch {
-            busy = true
-            try {
-                repo.updateProfile(block)
-                load()
-            } catch (e: Exception) {
-                fail(e)
-            } finally {
-                busy = false
-            }
+            flushNow()
+            if (pendingChanges == 0 && !offline) load()
         }
     }
 
@@ -161,27 +224,29 @@ class AppVM(private val app: Application) : AndroidViewModel(app) {
         lastStart: LocalDate, earlier: List<LocalDate>, cycle: Int, period: Int,
         pms: Int, regularity: Int, hormonal: Boolean,
     ) {
+        val s = snap ?: return
+        val today = LocalDate.now()
+        val days = (earlier + lastStart)
+            .flatMap { st -> (0 until period).map { st.plusDays(it.toLong()) } }
+            .filter { !it.isAfter(today) }
+            .distinct()
+        val o = buildJsonObject {
+            put("cycle_length", cycle)
+            put("period_length", period)
+            put("pms_days", pms)
+            put("regularity", regularity)
+            put("hormonal", hormonal)
+            put("onboarded", true)
+        }
+        snap = s.with(logs = s.logs + days).withMe(s.me.patched(o))
+        queue(PendingOp("days", days = days.map { it.toString() }))
+        queue(PendingOp("profile", payload = o.toString()))
         viewModelScope.launch {
             busy = true
             try {
-                val today = LocalDate.now()
-                val days = (earlier + lastStart)
-                    .flatMap { st -> (0 until period).map { st.plusDays(it.toLong()) } }
-                    .filter { !it.isAfter(today) }
-                    .distinct()
-                repo.addDays(days)
-                repo.updateProfile {
-                    put("cycle_length", cycle)
-                    put("period_length", period)
-                    put("pms_days", pms)
-                    put("regularity", regularity)
-                    put("hormonal", hormonal)
-                    put("onboarded", true)
-                }
-                load()
+                flushNow()
+                if (pendingChanges == 0 && !offline) load()
                 WorkManager.getInstance(app).enqueue(OneTimeWorkRequestBuilder<SyncWorker>().build())
-            } catch (e: Exception) {
-                fail(e)
             } finally {
                 busy = false
             }
@@ -195,14 +260,8 @@ class AppVM(private val app: Application) : AndroidViewModel(app) {
         val on = d !in s.logs
         val newLogs = if (on) s.logs + d else s.logs - d
         snap = s.with(logs = newLogs)
-        viewModelScope.launch {
-            try {
-                repo.setDay(d, on)
-            } catch (e: Exception) {
-                snap = s
-                fail(e)
-            }
-        }
+        queue(PendingOp("day", day = d.toString(), on = on))
+        viewModelScope.launch { flushNow() }
     }
 
     // ------------------------------------------------------------------ mood / symptoms / notes
@@ -211,10 +270,11 @@ class AppVM(private val app: Application) : AndroidViewModel(app) {
         if (s.me.role != "her") return
         val dl = DayLog(s.me.id, day.toString(), mood, energy, symptoms)
         snap = s.with(days = s.days + (day to dl))
+        queue(PendingOp("daylog", day = day.toString(), payload = dev.imhamid.period.data.Api.json.encodeToString(DayLog.serializer(), dl)))
         dayJobs[day]?.cancel()
         dayJobs[day] = viewModelScope.launch {
             delay(450)
-            try { repo.upsertDayLog(dl) } catch (e: Exception) { fail(e) }
+            flushNow()
         }
     }
 
@@ -223,11 +283,15 @@ class AppVM(private val app: Application) : AndroidViewModel(app) {
         if (s.me.role != "her") return
         val body = text.trim()
         snap = if (body.isEmpty()) s.with(notes = s.notes - day) else s.with(notes = s.notes + (day to Note(s.me.id, day.toString(), body, shared)))
+        val note = Note(s.me.id, day.toString(), body, shared)
+        queue(
+            if (body.isEmpty()) PendingOp("delnote", day = day.toString())
+            else PendingOp("note", day = day.toString(), payload = dev.imhamid.period.data.Api.json.encodeToString(Note.serializer(), note)),
+        )
         noteJobs[day]?.cancel()
         noteJobs[day] = viewModelScope.launch {
-            try {
-                if (body.isEmpty()) repo.deleteNote(day) else repo.upsertNote(Note(s.me.id, day.toString(), body, shared))
-            } catch (e: Exception) { fail(e) }
+            delay(450)
+            flushNow()
         }
     }
 
@@ -239,11 +303,10 @@ class AppVM(private val app: Application) : AndroidViewModel(app) {
         val isHer = s.me.role == "her"
         val targets = if (isHer) s.pairs.filter { it.status == "active" && (pairId == null || it.id == pairId) } else listOfNotNull(s.activePair)
         if (targets.isEmpty()) { error = "هنوز به هم وصل نیستید"; return }
+        targets.forEach { pr -> queue(PendingOp("msg", pairId = pr.id, toId = if (isHer) pr.partnerId else pr.herId, payload = body)) }
         viewModelScope.launch {
-            try {
-                targets.forEach { pr -> repo.sendMessage(pr.id, if (isHer) pr.partnerId else pr.herId, body) }
-                load()
-            } catch (e: Exception) { fail(e) }
+            flushNow()
+            if (pendingChanges > 0) error = "پیام ذخیره شد؛ وقتی اینترنت وصل شد می‌ره" else load()
         }
     }
 
