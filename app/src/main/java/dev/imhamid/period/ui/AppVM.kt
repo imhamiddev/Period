@@ -46,6 +46,11 @@ class AppVM(private val app: Application) : AndroidViewModel(app) {
     var snap by mutableStateOf<Snapshot?>(null)
     var busy by mutableStateOf(false)
     var error by mutableStateOf<String?>(null)
+
+    /** Set for a few seconds after she removes a logged day, so the snackbar can offer "undo". */
+    var undoDay by mutableStateOf<LocalDate?>(null)
+    private var undoJob: Job? = null
+    var refreshing by mutableStateOf(false)
     var update by mutableStateOf<UpdateState>(UpdateState.None)
     var lockEnabled by mutableStateOf(store.lockEnabled)
     var themeMode by mutableStateOf(store.themeMode)
@@ -163,6 +168,14 @@ class AppVM(private val app: Application) : AndroidViewModel(app) {
 
     fun refresh() = viewModelScope.launch { load() }
 
+    /** Pull-to-refresh: same as [refresh] but exposes the in-progress state for the indicator. */
+    fun pullRefresh() {
+        viewModelScope.launch {
+            refreshing = true
+            try { load() } finally { refreshing = false }
+        }
+    }
+
     // ------------------------------------------------------------------ intro / auth
     fun finishIntro() {
         store.introSeen = true
@@ -199,6 +212,23 @@ class AppVM(private val app: Application) : AndroidViewModel(app) {
     fun logout() {
         repo.signOut()
         logoutLocal()
+    }
+
+    /** Deletes the account and all its server data for good (needs a connection), then signs out. */
+    fun deleteAccount() {
+        viewModelScope.launch {
+            busy = true
+            try {
+                repo.deleteAccount()
+                LiveService.stop(app)
+                liveNotify = false
+                logoutLocal()
+            } catch (e: Exception) {
+                fail(e)
+            } finally {
+                busy = false
+            }
+        }
     }
 
     // ------------------------------------------------------------------ profile
@@ -262,6 +292,20 @@ class AppVM(private val app: Application) : AndroidViewModel(app) {
         snap = s.with(logs = newLogs)
         queue(PendingOp("day", day = d.toString(), on = on))
         viewModelScope.launch { flushNow() }
+        undoJob?.cancel()
+        if (on) {
+            if (undoDay == d) undoDay = null
+        } else {
+            undoDay = d
+            undoJob = viewModelScope.launch { delay(5000); undoDay = null }
+        }
+    }
+
+    fun undoRemove() {
+        val d = undoDay ?: return
+        undoDay = null
+        undoJob?.cancel()
+        toggleDay(d)
     }
 
     // ------------------------------------------------------------------ mood / symptoms / notes
@@ -419,18 +463,18 @@ class AppVM(private val app: Application) : AndroidViewModel(app) {
 
     fun startDownload() {
         val u = update
-        val (version, url) = when (u) {
-            is UpdateState.Available -> u.version to u.url
-            is UpdateState.Failed -> u.version to u.url
+        val (version, url, shaUrl) = when (u) {
+            is UpdateState.Available -> Triple(u.version, u.url, u.shaUrl)
+            is UpdateState.Failed -> Triple(u.version, u.url, u.shaUrl)
             else -> return
         }
         update = UpdateState.Downloading(version, 0f)
         viewModelScope.launch {
             try {
-                val f = Updater.download(app, version, url) { p -> update = UpdateState.Downloading(version, p) }
+                val f = Updater.download(app, version, url, shaUrl) { p -> update = UpdateState.Downloading(version, p) }
                 update = UpdateState.Ready(version, f)
             } catch (e: Exception) {
-                update = UpdateState.Failed(version, url, e.message ?: "دانلود ناموفق بود")
+                update = UpdateState.Failed(version, url, e.message ?: "دانلود ناموفق بود", shaUrl)
             }
         }
     }

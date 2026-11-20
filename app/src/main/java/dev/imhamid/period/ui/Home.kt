@@ -63,7 +63,13 @@ import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.WaterDrop
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.runtime.Composable
@@ -114,6 +120,7 @@ fun HomeScreen(vm: AppVM) {
     // light polling while visible (pairing requests, partner updates, messages)
     LaunchedEffect(Unit) { while (true) { delay(if (pending) 6000 else 15000); vm.refresh() } }
     BackHandler(enabled = sheetDay != null) { sheetDay = null }
+    BackHandler(enabled = sheetDay == null && tab != 0) { tab = 0 }
 
     Box(Modifier.fillMaxSize().background(C.Paper)) {
         AnimatedContent(
@@ -176,7 +183,8 @@ private fun BottomNav(selected: Int, onSelect: (Int) -> Unit, modifier: Modifier
             Row(
                 Modifier.animateContentSize(spring(0.78f, 420f))
                     .clip(RoundedCornerShape(28.dp)).background(bg)
-                    .pressable { onSelect(i) }
+                    .pressable(role = Role.Tab) { onSelect(i) }
+                    .semantics { contentDescription = label; this.selected = sel }
                     .padding(horizontal = 16.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -244,20 +252,22 @@ fun CycleRing(engine: CycleEngine?, ov: Overview?, modifier: Modifier = Modifier
 }
 
 // ============================================================================ home tab
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun HomeTab(vm: AppVM, onOpenDay: (LocalDate) -> Unit) {
     val s = vm.snap ?: return
     val me = s.me
     val isHer = me.role == "her"
     val owner = s.owner
-    val today = remember { LocalDate.now() }
-    val engine = remember(s.logs, owner) {
+    val today = rememberToday()
+    val engine = remember(s.logs, owner, today) {
         owner?.toEngine(today, s.logs)
     }
     val ov = remember(engine) { engine?.overview() }
     val ownerName = owner?.name?.takeIf { it.isNotBlank() } ?: "پارتنرت"
     val paused = !isHer && owner != null && !owner.shareEnabled
 
+    PullToRefreshBox(isRefreshing = vm.refreshing, onRefresh = { vm.pullRefresh() }) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         // ---------------- hero
         Aurora(Modifier.fillMaxWidth().clip(RoundedCornerShape(bottomStart = 44.dp, bottomEnd = 44.dp))) {
@@ -370,6 +380,7 @@ private fun HomeTab(vm: AppVM, onOpenDay: (LocalDate) -> Unit) {
             }
             Spacer(Modifier.height(86.dp))
         }
+    }
     }
 }
 
@@ -604,6 +615,17 @@ private fun ShareCard(vm: AppVM) {
 
 @Composable
 private fun PairRowItem(vm: AppVM, p: PairRow, name: String) {
+    var confirmRemove by remember(p.id) { mutableStateOf(false) }
+    if (confirmRemove) {
+        val pending = p.status == "pending"
+        ConfirmDialog(
+            title = if (pending) "رد درخواست؟" else "قطع اتصال؟",
+            text = if (pending) "درخواست اتصال $name رد می‌شه." else "$name دیگه چرخه‌ی اشتراکی رو نمی‌بینه. هر وقت خواستی می‌شه دوباره وصل شد.",
+            confirm = if (pending) "رد کن" else "قطع کن",
+            onConfirm = { confirmRemove = false; vm.removePair(p.id) },
+            onDismiss = { confirmRemove = false },
+        )
+    }
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.size(40.dp).clip(CircleShape).background(C.Lime), contentAlignment = Alignment.Center) {
             Txt(name.take(1), 16.sp, FontWeight.Bold, C.Deep)
@@ -614,19 +636,25 @@ private fun PairRowItem(vm: AppVM, p: PairRow, name: String) {
             Txt(if (p.status == "pending") "منتظر تایید تو" else "وصل است", 12.sp, color = if (p.status == "pending") C.Amber else C.Green)
         }
         if (p.status == "pending") {
-            RoundIcon(Icons.Rounded.Check, C.Green, Color.White) { vm.approve(p.id) }
+            RoundIcon(Icons.Rounded.Check, C.Green, Color.White, "تایید") { vm.approve(p.id) }
             Spacer(Modifier.size(8.dp))
-            RoundIcon(Icons.Rounded.Close, C.CoralSoft, C.Text) { vm.removePair(p.id) }
+            RoundIcon(Icons.Rounded.Close, C.CoralSoft, C.Text, "رد درخواست") { confirmRemove = true }
         } else {
-            RoundIcon(Icons.Rounded.Close, C.Paper, C.Muted) { vm.removePair(p.id) }
+            RoundIcon(Icons.Rounded.Close, C.Paper, C.Muted, "قطع اتصال") { confirmRemove = true }
         }
     }
 }
 
+/** 40 dp visual circle inside a 48 dp touch target; [description] is read by screen readers. */
 @Composable
-internal fun RoundIcon(icon: androidx.compose.ui.graphics.vector.ImageVector, bg: Color, fg: Color, onClick: () -> Unit) {
-    Box(Modifier.size(40.dp).clip(CircleShape).background(bg).pressable(onClick = onClick), contentAlignment = Alignment.Center) {
-        Icon(icon, null, tint = fg, modifier = Modifier.size(20.dp))
+internal fun RoundIcon(icon: androidx.compose.ui.graphics.vector.ImageVector, bg: Color, fg: Color, description: String? = null, onClick: () -> Unit) {
+    Box(
+        Modifier.size(48.dp).pressable(onClick = onClick).semantics { if (description != null) contentDescription = description },
+        contentAlignment = Alignment.Center,
+    ) {
+        Box(Modifier.size(40.dp).clip(CircleShape).background(bg), contentAlignment = Alignment.Center) {
+            Icon(icon, null, tint = fg, modifier = Modifier.size(20.dp))
+        }
     }
 }
 
@@ -661,8 +689,8 @@ private fun CalendarTab(vm: AppVM, onOpenDay: (LocalDate) -> Unit) {
     val s = vm.snap ?: return
     val isHer = s.me.role == "her"
     val owner = s.owner
-    val today = remember { LocalDate.now() }
-    val engine = remember(s.logs, owner) {
+    val today = rememberToday()
+    val engine = remember(s.logs, owner, today) {
         owner?.toEngine(today, s.logs)
     }
     var month by rememberSaveable { mutableStateOf(Fa.jalaliMonth(today).first.toString()) }
@@ -672,14 +700,14 @@ private fun CalendarTab(vm: AppVM, onOpenDay: (LocalDate) -> Unit) {
     Column(Modifier.fillMaxSize().background(C.Paper).statusBarsPadding().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp)) {
         Spacer(Modifier.height(18.dp))
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            RoundIcon(Icons.Rounded.ChevronRight, C.Surface, C.Text) { month = Fa.jalaliMonth(first.minusDays(1)).first.toString() }
+            RoundIcon(Icons.Rounded.ChevronRight, C.Surface, C.Text, "ماه قبل") { month = Fa.jalaliMonth(first.minusDays(1)).first.toString() }
             AnimatedContent(
                 month,
                 modifier = Modifier.weight(1f),
                 transitionSpec = { fadeIn(tween(300)) togetherWith fadeOut(tween(200)) },
                 label = "mt",
             ) { m -> Txt(Fa.date(LocalDate.parse(m), "MMMM y"), 22.sp, FontWeight.Light, align = TextAlign.Center, modifier = Modifier.fillMaxWidth()) }
-            RoundIcon(Icons.Rounded.ChevronLeft, C.Surface, C.Text) { month = first.plusDays(len.toLong()).toString() }
+            RoundIcon(Icons.Rounded.ChevronLeft, C.Surface, C.Text, "ماه بعد") { month = first.plusDays(len.toLong()).toString() }
         }
         Spacer(Modifier.height(18.dp))
         Card(Modifier, ) {
@@ -768,7 +796,18 @@ private fun DayCell(d: LocalDate, today: LocalDate, engine: CycleEngine?, days: 
     Box(
         Modifier.fillMaxSize().scale(sc).clip(CircleShape).background(bg)
             .then(if (isToday) Modifier.border(2.dp, C.Text, CircleShape) else Modifier)
-            .then(if (!future) Modifier.pressable { onTap(d) } else Modifier),
+            .then(if (!future) Modifier.pressable { onTap(d) } else Modifier)
+            .semantics {
+                contentDescription = buildString {
+                    append(Fa.date(d, "d MMMM"))
+                    when {
+                        logged -> append("، پریود ثبت شده")
+                        predictedPeriod -> append("، پریود پیش‌بینی‌شده")
+                        phase != null -> append("، ").append(Fa.phaseName(phase))
+                    }
+                    if (isToday) append("، امروز")
+                }
+            },
         contentAlignment = Alignment.Center,
     ) {
         Txt(Fa.jalaliDay(d), 14.sp, if (logged || isToday) FontWeight.Bold else FontWeight.Normal, if (future && bg == Color.Transparent) C.Muted else C.Text)

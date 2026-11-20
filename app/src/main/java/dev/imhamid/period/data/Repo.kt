@@ -1,5 +1,7 @@
 package dev.imhamid.period.data
 
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
@@ -10,6 +12,11 @@ import java.time.LocalDate
 class Repo(private val store: SessionStore) {
     private val json = Api.json
     private val uid: String get() = store.uid ?: throw ApiException(401, "وارد نشدی")
+
+    private companion object {
+        /** One lock for every Repo instance in the process. */
+        val refreshLock = Mutex()
+    }
 
     // ------------------------------------------------------------------ auth
     suspend fun signUp(email: String, password: String): AuthResponse {
@@ -27,27 +34,43 @@ class Repo(private val store: SessionStore) {
         return r
     }
 
-    private suspend fun refresh(): Boolean {
-        val rt = store.refresh ?: return false
-        return try {
+    /**
+     * Gets a new access token. All callers (UI, background worker, live service) go through one lock: refresh
+     * tokens rotate, so two simultaneous refreshes would burn the token and sign her out.
+     * [usedToken] is the access token the failed call was made with; if it already changed, somebody else refreshed.
+     */
+    private suspend fun refresh(usedToken: String?): Boolean = refreshLock.withLock {
+        val current = store.access
+        if (current != null && current != usedToken) return@withLock true
+        val rt = store.refresh ?: return@withLock false
+        try {
             val body = buildJsonObject { put("refresh_token", rt) }.toString()
             val r = json.decodeFromString<AuthResponse>(Api.raw("POST", "/auth/v1/token?grant_type=refresh_token", body))
             store.save(r)
             true
         } catch (e: ApiException) {
-            if (e.code in 400..403) store.clear()
+            // Only a definitive "this refresh token is dead" ends the session, and even then the offline copy and the
+            // queue of unsent changes are kept. Offline errors, 5xx, rate limits etc. just fail this one call.
+            if (isDeadRefreshToken(e)) store.invalidateSession()
             false
         }
+    }
+
+    private fun isDeadRefreshToken(e: ApiException): Boolean {
+        if (e.code != 400 && e.code != 401 && e.code != 403) return false
+        val m = e.message.orEmpty()
+        return m.contains("refresh token", true) || m.contains("invalid_grant", true) || m.contains("session", true)
     }
 
     fun signOut() = store.clear()
 
     /** Authenticated call with one automatic token refresh. */
     private suspend fun authed(method: String, path: String, body: String? = null, headers: Map<String, String> = emptyMap()): String {
+        val used = store.access
         return try {
-            Api.raw(method, path, body, store.access, headers)
+            Api.raw(method, path, body, used, headers)
         } catch (e: ApiException) {
-            if ((e.code == 401 || e.code == 403) && refresh()) Api.raw(method, path, body, store.access, headers) else throw e
+            if ((e.code == 401 || e.code == 403) && refresh(used)) Api.raw(method, path, body, store.access, headers) else throw e
         }
     }
 
@@ -102,7 +125,9 @@ class Repo(private val store: SessionStore) {
 
     suspend fun requestPair(code: String) {
         val body = buildJsonObject { put("p_code", code.trim().uppercase()) }.toString()
-        authed("POST", "/rest/v1/rpc/request_pair", body)
+        // the function answers with a status text (see supabase/migrations_005_security.sql)
+        val status = authed("POST", "/rest/v1/rpc/request_pair_v2", body).trim().trim('"')
+        if (status != "ok") throw ApiException(400, Api.friendly(status))
     }
 
     suspend fun approve(pairId: String) {
@@ -116,6 +141,12 @@ class Repo(private val store: SessionStore) {
 
     suspend fun removePair(pairId: String) {
         authed("DELETE", "/rest/v1/pairs?id=eq.$pairId")
+    }
+
+    /** Permanently deletes the account and all its data on the server, then wipes this phone. */
+    suspend fun deleteAccount() {
+        authed("POST", "/rest/v1/rpc/delete_my_account", "{}")
+        store.clear()
     }
 
     // ------------------------------------------------------------------ mood / notes / messages
@@ -132,6 +163,12 @@ class Repo(private val store: SessionStore) {
     suspend fun messages(): List<Message> {
         val s = authed("GET", "/rest/v1/messages?select=*&order=created_at.desc&limit=30")
         return json.decodeFromString(ListSerializer(Message.serializer()), s)
+    }
+
+    /** Cheap check for the live service: ids of unread messages sent to me (no bodies, no joins). */
+    suspend fun unreadIds(): List<String> {
+        val s = authed("GET", "/rest/v1/messages?to_id=eq.$uid&read_at=is.null&select=id&order=created_at.desc&limit=30")
+        return json.decodeFromString(ListSerializer(IdRow.serializer()), s).map { it.id }
     }
 
     suspend fun upsertDayLog(d: DayLog) {

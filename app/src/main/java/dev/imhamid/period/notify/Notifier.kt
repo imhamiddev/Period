@@ -64,10 +64,9 @@ object Notifier {
         if (me.role == "her") {
             snap.pairs.filter { it.status == "pending" }.forEach { p ->
                 val key = "req-${p.id}"
-                if (!store.wasSent(key)) {
+                if (store.claim(key)) {
                     val who = snap.others[p.partnerId]?.name?.takeIf { it.isNotBlank() } ?: "کسی"
                     post(ctx, key.hashCode(), "درخواست اتصال", "$who می‌خواد بهت وصل بشه. داخل برنامه تایید کن.")
-                    store.markSent(key)
                 }
             }
         }
@@ -75,10 +74,9 @@ object Notifier {
         // Quick messages → immediately.
         snap.inbox.filter { it.toId == me.id && it.readAt == null }.forEach { m ->
             val key = "msg-${m.id}"
-            if (!store.wasSent(key)) {
+            if (store.claim(key)) {
                 val from = snap.others[m.fromId]?.name?.takeIf { it.isNotBlank() } ?: "پیام جدید"
                 post(ctx, key.hashCode(), "پیام از $from", m.body)
-                store.markSent(key)
             }
         }
 
@@ -98,10 +96,10 @@ object Notifier {
                 EventType.PERIOD_LATE -> me.notifyLate
             }
             val key = "${ev.name}-$today"
-            if (allowed && !store.wasSent(key)) {
+            // claim() marks the key atomically, so the worker and the live service never both notify for it
+            if (allowed && store.claim(key)) {
                 val text = if (partnerTone) Fa.notif(ev, herName, forHer) else Fa.supportNotif(ev, herName)
                 if (text != null) post(ctx, key.hashCode(), text.first, text.second)
-                store.markSent(key)
             }
         }
     }

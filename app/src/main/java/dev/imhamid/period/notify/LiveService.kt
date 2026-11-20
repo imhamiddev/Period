@@ -25,7 +25,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 /**
- * Optional "instant messages" mode: a tiny foreground service that checks for new messages every ~20 s,
+ * Optional "instant messages" mode: a tiny foreground service that checks for new messages every ~30 s (backing off when offline),
  * so alerts arrive within seconds without Google services / Firebase.
  */
 class LiveService : Service() {
@@ -39,15 +39,18 @@ class LiveService : Service() {
             job = CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
                 val store = SessionStore(applicationContext)
                 val repo = Repo(store)
+                var wait = POLL_MS
                 while (isActive && store.liveNotify && store.signedIn && Api.configured) {
-                    try {
-                        val uid = store.uid
-                        val fresh = repo.messages().any { it.toId == uid && it.readAt == null && !store.wasSent("msg-${it.id}") }
+                    wait = try {
+                        // light poll: only the ids of unread messages; the full snapshot is fetched only for news
+                        val fresh = repo.unreadIds().any { !store.wasSent("msg-$it") }
                         if (fresh) Notifier.process(applicationContext, store, repo.snapshot())
+                        POLL_MS
                     } catch (e: Exception) {
-                        // network hiccup: try again on the next tick
+                        // offline or server hiccup: back off (30 s, 60 s, … up to 5 min) instead of hammering
+                        minOf(wait * 2, MAX_BACKOFF_MS)
                     }
-                    delay(20_000)
+                    delay(wait)
                 }
                 stopSelf()
             }
@@ -83,6 +86,8 @@ class LiveService : Service() {
     companion object {
         private const val CHANNEL = "live"
         private const val NOTIF_ID = 7001
+        private const val POLL_MS = 30_000L
+        private const val MAX_BACKOFF_MS = 300_000L
 
         fun start(ctx: Context) {
             runCatching { ContextCompat.startForegroundService(ctx, Intent(ctx, LiveService::class.java)) }

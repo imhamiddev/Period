@@ -67,6 +67,27 @@ internal fun SettingsTab(vm: AppVM) {
     val ctx = LocalContext.current
     var editName by remember { mutableStateOf(false) }
     var nameText by remember(me.name) { mutableStateOf(me.name.orEmpty()) }
+    var confirmDelete by remember { mutableStateOf(false) }
+
+    var confirmLogout by remember { mutableStateOf(false) }
+    if (confirmDelete) {
+        ConfirmDialog(
+            title = "حذف حساب؟",
+            text = "حساب، چرخه‌ها، یادداشت‌ها و پیام‌هات برای همیشه از سرور پاک می‌شن و قابل برگشت نیست. اتصال به اینترنت لازمه.",
+            confirm = "حذف برای همیشه",
+            onConfirm = { confirmDelete = false; vm.deleteAccount() },
+            onDismiss = { confirmDelete = false },
+        )
+    }
+    if (confirmLogout) {
+        ConfirmDialog(
+            title = "خروج از حساب؟",
+            text = "اگه تغییری هنوز به سرور نرسیده باشه (مثلاً آفلاین ثبت کردی)، با خروج از دست می‌ره.",
+            confirm = "خروج",
+            onConfirm = { confirmLogout = false; vm.logout() },
+            onDismiss = { confirmLogout = false },
+        )
+    }
 
     Column(Modifier.fillMaxSize().background(C.Paper).statusBarsPadding().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp)) {
         Spacer(Modifier.height(20.dp))
@@ -85,7 +106,7 @@ internal fun SettingsTab(vm: AppVM) {
                             Spacer(Modifier.size(14.dp))
                             Column(Modifier.weight(1f)) {
                                 Txt(me.name.orEmpty(), 18.sp, FontWeight.Medium)
-                                Txt(me.email.orEmpty(), 12.sp, color = C.Muted, maxLines = 1)
+                                Txt((vm.store.email ?: me.email).orEmpty(), 12.sp, color = C.Muted, maxLines = 1)
                                 Spacer(Modifier.height(4.dp))
                                 RoleBadge(if (isHer) "ثبت‌کننده‌ی چرخه" else "پارتنر")
                             }
@@ -239,9 +260,14 @@ internal fun SettingsTab(vm: AppVM) {
                         PrimaryButton("همگام‌سازی حالا", { vm.refresh() }, kind = BtnKind.Light, modifier = Modifier.border(1.dp, C.Line, RoundedCornerShape(29.dp)))
                         PrimaryButton("بررسی آپدیت", { vm.checkUpdate() }, kind = BtnKind.Lime)
                         PrimaryButton(
-                            "خروج از حساب", { vm.logout() }, kind = BtnKind.Light,
+                            "خروج از حساب", { confirmLogout = true }, kind = BtnKind.Light,
                             modifier = Modifier.border(1.dp, C.Line, RoundedCornerShape(29.dp)),
                             icon = { Icon(Icons.AutoMirrored.Rounded.Logout, null, tint = C.Text, modifier = Modifier.size(20.dp)) },
+                        )
+                        Txt(
+                            "حذف حساب و همه‌ی داده‌ها", 14.sp, FontWeight.Medium, C.Coral,
+                            Modifier.fillMaxWidth().pressable { confirmDelete = true }.padding(vertical = 12.dp),
+                            align = androidx.compose.ui.text.style.TextAlign.Center,
                         )
                     }
                 }
@@ -289,6 +315,16 @@ private fun PairLine(vm: AppVM, p: PairRow, name: String, editable: Boolean) {
     val label = vm.labelOf(p)
     var open by remember(p.id) { mutableStateOf(false) }
     var text by remember(p.id, label) { mutableStateOf(label.orEmpty()) }
+    var confirmRemove by remember(p.id) { mutableStateOf(false) }
+    if (confirmRemove) {
+        ConfirmDialog(
+            title = if (pending) "رد درخواست؟" else "قطع اتصال؟",
+            text = if (pending) "درخواست اتصال $name رد می‌شه." else "$name دیگه چرخه‌ی اشتراکی رو نمی‌بینه. هر وقت خواستی می‌شه دوباره وصل شد.",
+            confirm = if (pending) "رد کن" else "قطع کن",
+            onConfirm = { confirmRemove = false; vm.removePair(p.id) },
+            onDismiss = { confirmRemove = false },
+        )
+    }
     Column(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(38.dp).clip(CircleShape).background(C.Lime), contentAlignment = Alignment.Center) {
@@ -311,7 +347,7 @@ private fun PairLine(vm: AppVM, p: PairRow, name: String, editable: Boolean) {
                     Modifier.pressable { open = !open }.padding(8.dp),
                 )
             }
-            RoundIcon(Icons.Rounded.Close, C.Paper, C.Muted) { vm.removePair(p.id) }
+            RoundIcon(Icons.Rounded.Close, C.Paper, C.Muted, "قطع اتصال") { confirmRemove = true }
         }
         if (!editable && label != null) Txt("نقش تو برای ${vm.snap?.others?.get(p.herId)?.name ?: "اون"}: $label", 12.sp, color = C.Muted)
         if (editable) {
@@ -335,13 +371,13 @@ private fun PairLine(vm: AppVM, p: PairRow, name: String, editable: Boolean) {
 private fun SettingStepper(label: String, value: Int, min: Int, max: Int, format: (Int) -> String = { Fa.n(it) }, onChange: (Int) -> Unit) {
     Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
         Txt(label, 16.sp, FontWeight.Medium, modifier = Modifier.weight(1f))
-        RoundIcon(Icons.Rounded.ChevronRight, C.Paper, C.Text) { if (value < max) onChange(value + 1) }
+        RoundIcon(Icons.Rounded.ChevronRight, C.Paper, C.Text, "بیشتر") { if (value < max) onChange(value + 1) }
         Box(Modifier.size(76.dp, 40.dp), contentAlignment = Alignment.Center) {
             AnimatedContent(value, transitionSpec = { fadeIn(tween(200)) togetherWith fadeOut(tween(150)) }, label = "sv") { v ->
                 Txt(format(v), 15.sp, FontWeight.Medium)
             }
         }
-        RoundIcon(Icons.Rounded.ChevronLeft, C.Paper, C.Text) { if (value > min) onChange(value - 1) }
+        RoundIcon(Icons.Rounded.ChevronLeft, C.Paper, C.Text, "کمتر") { if (value > min) onChange(value - 1) }
     }
 }
 
