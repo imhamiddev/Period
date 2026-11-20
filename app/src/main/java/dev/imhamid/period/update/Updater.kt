@@ -14,13 +14,15 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.Request
 import java.io.File
+import java.security.MessageDigest
 
 sealed interface UpdateState {
     data object None : UpdateState
-    data class Available(val version: String, val url: String, val notes: String) : UpdateState
+    /** [shaUrl]: the release's `<apk>.sha256` asset, when it has one. */
+    data class Available(val version: String, val url: String, val notes: String, val shaUrl: String? = null) : UpdateState
     data class Downloading(val version: String, val progress: Float) : UpdateState
     data class Ready(val version: String, val file: File) : UpdateState
-    data class Failed(val version: String, val url: String, val message: String) : UpdateState
+    data class Failed(val version: String, val url: String, val message: String, val shaUrl: String? = null) : UpdateState
 }
 
 object Updater {
@@ -50,26 +52,29 @@ object Updater {
                 if (!r.isSuccessful) return@withContext UpdateState.None
                 val o = Api.json.parseToJsonElement(r.body!!.string()).jsonObject
                 val tag = o["tag_name"]?.jsonPrimitive?.content ?: return@withContext UpdateState.None
-                val apk = o["assets"]?.jsonArray
-                    ?.map { it.jsonObject }
-                    ?.firstOrNull { it["name"]?.jsonPrimitive?.content?.endsWith(".apk") == true }
-                    ?.get("browser_download_url")?.jsonPrimitive?.content
-                    ?: return@withContext UpdateState.None
+                val assets = o["assets"]?.jsonArray?.map { it.jsonObject }.orEmpty()
+                fun name(a: kotlinx.serialization.json.JsonObject) = a["name"]?.jsonPrimitive?.content.orEmpty()
+                fun link(a: kotlinx.serialization.json.JsonObject) = a["browser_download_url"]?.jsonPrimitive?.content
+                val apkAsset = assets.firstOrNull { name(it).endsWith(".apk") } ?: return@withContext UpdateState.None
+                val apk = link(apkAsset) ?: return@withContext UpdateState.None
+                val shaUrl = assets.firstOrNull { name(it) == name(apkAsset) + ".sha256" }?.let { link(it) }
                 if (!isNewer(tag, BuildConfig.VERSION_NAME)) return@withContext UpdateState.None
                 val notes = o["body"]?.jsonPrimitive?.content.orEmpty()
-                UpdateState.Available(tag.removePrefix("v"), apk, notes)
+                UpdateState.Available(tag.removePrefix("v"), apk, notes, shaUrl)
             }
         } catch (e: Exception) {
             UpdateState.None
         }
     }
 
-    suspend fun download(ctx: Context, version: String, url: String, onProgress: (Float) -> Unit): File =
+    /** Downloads the APK; when the release publishes a `.sha256` file the download is verified against it. */
+    suspend fun download(ctx: Context, version: String, url: String, shaUrl: String? = null, onProgress: (Float) -> Unit): File =
         withContext(Dispatchers.IO) {
             val dir = File(ctx.cacheDir, "updates").apply { mkdirs() }
             dir.listFiles()?.forEach { it.delete() }
             val out = File(dir, "luna-$version.apk")
             val req = Request.Builder().url(url).build()
+            val digest = MessageDigest.getInstance("SHA-256")
             Api.http.newBuilder().readTimeout(60, java.util.concurrent.TimeUnit.SECONDS).build()
                 .newCall(req).execute().use { r ->
                     if (!r.isSuccessful) error("HTTP ${r.code}")
@@ -84,6 +89,7 @@ object Updater {
                                 val n = input.read(buf)
                                 if (n < 0) break
                                 os.write(buf, 0, n)
+                                digest.update(buf, 0, n)
                                 done += n
                                 val now = System.currentTimeMillis()
                                 if (total != null && now - lastEmit > 60) {
@@ -94,8 +100,25 @@ object Updater {
                         }
                     }
                 }
+            if (shaUrl != null) {
+                val expected = fetchChecksum(shaUrl)
+                val actual = digest.digest().joinToString("") { "%02x".format(it) }
+                if (!actual.equals(expected, ignoreCase = true)) {
+                    out.delete()
+                    error("checksum mismatch")
+                }
+            }
             onProgress(1f)
             out
+        }
+
+    /** First token of a `sha256sum` style file: "<64 hex>  <file name>". */
+    private fun fetchChecksum(url: String): String =
+        Api.http.newCall(Request.Builder().url(url).build()).execute().use { r ->
+            if (!r.isSuccessful) error("checksum HTTP ${r.code}")
+            val hex = r.body?.string().orEmpty().trim().split(Regex("\\s+")).firstOrNull().orEmpty()
+            if (!Regex("[0-9a-fA-F]{64}").matches(hex)) error("bad checksum file")
+            hex
         }
 
     /** @return false when the user first has to allow "install unknown apps". */

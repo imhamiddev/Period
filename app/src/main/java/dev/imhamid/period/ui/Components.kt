@@ -45,6 +45,13 @@ import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
+import java.time.LocalDate
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -101,7 +108,7 @@ fun Txt(
 }
 
 /** Soft spring-scale press + light haptic tick. */
-fun Modifier.pressable(enabled: Boolean = true, onClick: () -> Unit): Modifier = composed {
+fun Modifier.pressable(enabled: Boolean = true, role: Role? = Role.Button, onClick: () -> Unit): Modifier = composed {
     val src = remember { MutableInteractionSource() }
     val pressed by src.collectIsPressedAsState()
     val scale by animateFloatAsState(
@@ -112,7 +119,7 @@ fun Modifier.pressable(enabled: Boolean = true, onClick: () -> Unit): Modifier =
     val haptic = LocalHapticFeedback.current
     this
         .graphicsLayer { scaleX = scale; scaleY = scale }
-        .clickable(interactionSource = src, indication = null, enabled = enabled) {
+        .clickable(interactionSource = src, indication = null, enabled = enabled, role = role) {
             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
             onClick()
         }
@@ -263,7 +270,7 @@ fun Field(
                         transitionSpec = { (fadeIn(tween(180)) + scaleIn(spring(0.5f), 0.5f)) togetherWith (fadeOut(tween(120)) + scaleOut(targetScale = 0.5f)) },
                         label = "eye",
                     ) { sh ->
-                        Icon(if (sh) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility, contentDescription = null, tint = C.Muted, modifier = Modifier.size(22.dp))
+                        Icon(if (sh) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility, contentDescription = if (sh) "پنهان کردن رمز" else "نمایش رمز", tint = C.Muted, modifier = Modifier.size(22.dp))
                     }
                 }
                 if (password) androidx.compose.foundation.layout.Spacer(Modifier.size(12.dp))
@@ -329,7 +336,43 @@ fun Chip(text: String, selected: Boolean, onClick: () -> Unit, modifier: Modifie
     Box(
         modifier.graphicsLayer { scaleX = sc; scaleY = sc }
             .clip(RoundedCornerShape(20.dp)).background(bg).border(1.dp, C.Line, RoundedCornerShape(20.dp))
-            .pressable(onClick = onClick).padding(horizontal = 14.dp, vertical = 9.dp),
+            .pressable(onClick = onClick).semantics { this.selected = selected }.padding(horizontal = 14.dp, vertical = 9.dp),
         contentAlignment = Alignment.Center,
     ) { Txt(text, 14.sp, color = fg) }
+}
+
+
+/** Confirmation for actions that can't be undone (sign out, remove a connection, delete the account). */
+@Composable
+fun ConfirmDialog(
+    title: String,
+    text: String,
+    confirm: String,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+    danger: Boolean = true,
+) {
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = C.Surface,
+        title = { Txt(title, 20.sp, FontWeight.Medium) },
+        text = { Txt(text, 14.sp, color = C.Muted) },
+        confirmButton = {
+            Txt(confirm, 15.sp, FontWeight.Medium, if (danger) C.Coral else C.Text, Modifier.pressable { onConfirm() }.padding(12.dp))
+        },
+        dismissButton = {
+            Txt("انصراف", 15.sp, FontWeight.Medium, C.Text, Modifier.pressable { onDismiss() }.padding(12.dp))
+        },
+    )
+}
+
+/**
+ * Today's date that stays correct: it refreshes when the app comes back to the foreground, so a screen left open
+ * overnight no longer shows yesterday's cycle day.
+ */
+@Composable
+fun rememberToday(): LocalDate {
+    var today by remember { mutableStateOf(LocalDate.now()) }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { today = LocalDate.now() }
+    return today
 }

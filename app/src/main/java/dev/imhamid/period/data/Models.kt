@@ -40,6 +40,9 @@ data class PairRow(
 data class LogRow(val day: String)
 
 @Serializable
+data class IdRow(val id: String)
+
+@Serializable
 data class AuthUser(val id: String, val email: String? = null)
 
 @Serializable

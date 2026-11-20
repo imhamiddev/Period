@@ -3,3 +3,9 @@ build/
 local.properties
 .idea/
 *.apk
+
+# signing material must never be committed
+*.jks
+*.keystore
+signing/
+keystore.properties

@@ -59,13 +59,14 @@ object Api {
         (o["msg"] ?: o["message"] ?: o["error_description"] ?: o["error"])?.jsonPrimitive?.content
     }.getOrNull() ?: s
 
-    private fun friendly(m: String): String = when {
+    fun friendly(m: String): String = when {
         m.contains("Invalid login credentials", true) -> ERR_INVALID
         m.contains("already registered", true) -> ERR_EXISTS
         m.contains("at least", true) && m.contains("password", true) -> "رمز عبور باید حداقل ۶ کاراکتر باشه"
         m.contains("valid email", true) || m.contains("invalid format", true) -> "ایمیل معتبر نیست"
         m.contains("invalid_code") -> "این کد وجود نداره"
         m.contains("self_code") -> "این کد خودته 😅"
+        m.contains("too_many_attempts") -> "تلاش‌های زیاد؛ چند دقیقه‌ی دیگه دوباره امتحان کن"
         m.contains("Email not confirmed", true) -> "تایید ایمیل در Supabase فعاله؛ غیرفعالش کن"
         m.contains("rate limit", true) -> "کمی صبر کن و دوباره تلاش کن"
         else -> m.take(140)

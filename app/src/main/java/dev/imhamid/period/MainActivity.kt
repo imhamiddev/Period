@@ -5,6 +5,7 @@ import android.os.Build
 import android.os.Bundle
 import androidx.fragment.app.FragmentActivity
 import android.os.SystemClock
+import android.view.WindowManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -39,6 +40,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -61,6 +63,7 @@ import dev.imhamid.period.ui.Route
 import dev.imhamid.period.ui.RoleScreen
 import dev.imhamid.period.ui.SetupScreen
 import dev.imhamid.period.ui.Txt
+import dev.imhamid.period.ui.pressable
 import dev.imhamid.period.ui.UpdateBanner
 import kotlinx.coroutines.delay
 
@@ -97,6 +100,11 @@ class MainActivity : FragmentActivity() {
         if (vm.liveNotify && vm.signedIn) dev.imhamid.period.notify.LiveService.start(this)
         locked = vm.lockEnabled && dev.imhamid.period.ui.Biometrics.available(this)
         setContent {
+            // With the app lock on, hide the content from screenshots, screen recording and the Recents thumbnail.
+            LaunchedEffect(vm.lockEnabled) {
+                if (vm.lockEnabled) window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
+                else window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+            }
             PeriodTheme(vm.themeMode) {
                 CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
                     Root(vm, locked) { unlock() }
@@ -185,6 +193,22 @@ private fun Root(vm: AppVM, locked: Boolean, onUnlock: () -> Unit) {
             Box(
                 Modifier.padding(horizontal = 20.dp).clip(RoundedCornerShape(20.dp)).background(C.Ink).padding(horizontal = 18.dp, vertical = 12.dp),
             ) { Txt(vm.error ?: "", 14.sp, color = androidx.compose.ui.graphics.Color.White) }
+        }
+
+        // "day removed" snackbar with undo
+        AnimatedVisibility(
+            visible = vm.undoDay != null,
+            modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 92.dp),
+            enter = slideInVertically(tween(300)) { it } + fadeIn(tween(300)),
+            exit = slideOutVertically(tween(250)) { it } + fadeOut(tween(200)),
+        ) {
+            androidx.compose.foundation.layout.Row(
+                Modifier.padding(horizontal = 20.dp).clip(RoundedCornerShape(20.dp)).background(C.Ink).padding(start = 18.dp, end = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Txt("روز حذف شد", 14.sp, color = androidx.compose.ui.graphics.Color.White)
+                Txt("برگردان", 14.sp, androidx.compose.ui.text.font.FontWeight.Medium, C.Lime, Modifier.pressable { vm.undoRemove() }.padding(horizontal = 14.dp, vertical = 14.dp))
+            }
         }
     }
 }

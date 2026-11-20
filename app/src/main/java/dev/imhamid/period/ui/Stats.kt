@@ -56,8 +56,8 @@ fun StatsTab(vm: AppVM) {
     val s = vm.snap ?: return
     val isHer = s.me.role == "her"
     val owner = s.owner
-    val today = remember { LocalDate.now() }
-    val engine = remember(s.logs, owner) {
+    val today = rememberToday()
+    val engine = remember(s.logs, owner, today) {
         owner?.toEngine(today, s.logs)
     }
     val ownerName = owner?.name?.takeIf { it.isNotBlank() } ?: "پارتنرت"
@@ -177,9 +177,9 @@ fun StatsTab(vm: AppVM) {
                     Card {
                         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                RoundIcon(Icons.Rounded.ChevronRight, C.Paper, C.Text) { monthStart = Fa.jalaliMonth(first.minusDays(1)).first.toString() }
+                                RoundIcon(Icons.Rounded.ChevronRight, C.Paper, C.Text, "ماه قبل") { monthStart = Fa.jalaliMonth(first.minusDays(1)).first.toString() }
                                 Txt("خلاصه‌ی ${Fa.date(first, "MMMM y")}", 16.sp, FontWeight.Medium, align = TextAlign.Center, modifier = Modifier.weight(1f))
-                                RoundIcon(Icons.Rounded.ChevronLeft, C.Paper, C.Text) {
+                                RoundIcon(Icons.Rounded.ChevronLeft, C.Paper, C.Text, "ماه بعد") {
                                     if (last.isBefore(today)) monthStart = last.plusDays(1).toString()
                                 }
                             }

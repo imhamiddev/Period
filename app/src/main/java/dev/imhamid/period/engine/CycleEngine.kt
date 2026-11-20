@@ -172,7 +172,10 @@ class CycleEngine(
         val o = overview()
         val out = mutableListOf<EventType>()
         o.daysToPms?.let { if (it == 1) out += EventType.PMS_TOMORROW; if (it == 0) out += EventType.PMS_STARTS }
-        o.daysToPeriod?.let { if (it == 2) out += EventType.PERIOD_SOON; if (it == 0) out += EventType.PERIOD_TODAY }
+        o.daysToPeriod?.let { if (it == 2) out += EventType.PERIOD_SOON }
+        // The open cycle always extends through today, so daysToPeriod is never 0 (it stays 1 on the expected day).
+        // "Period expected today" therefore has to be computed from the last start + the predicted cycle length.
+        if (today == periods.last().start.plusDays(predictedCycle.toLong())) out += EventType.PERIOD_TODAY
         if (!hormonal && o.daysToOvulation == 0) out += EventType.OVULATION
         if (o.lateDays == 2 || o.lateDays == 5) out += EventType.PERIOD_LATE
         return out

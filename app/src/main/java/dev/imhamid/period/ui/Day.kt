@@ -56,8 +56,8 @@ fun DaySheet(vm: AppVM, day: LocalDate, onClose: () -> Unit) {
     val s = vm.snap ?: return
     val isHer = s.me.role == "her"
     val owner = s.owner
-    val today = remember { LocalDate.now() }
-    val engine = remember(s.logs, owner) {
+    val today = rememberToday()
+    val engine = remember(s.logs, owner, today) {
         owner?.toEngine(today, s.logs)
     }
     val dl = s.days[day]
@@ -84,7 +84,7 @@ fun DaySheet(vm: AppVM, day: LocalDate, onClose: () -> Unit) {
                 Txt(Fa.date(day, "EEEE d MMMM"), 22.sp, FontWeight.Light)
                 if (phase != null) Txt(Fa.phaseName(phase), 13.sp, color = C.Green)
             }
-            RoundIcon(Icons.Rounded.Close, C.Surface, C.Text, onClose)
+            RoundIcon(Icons.Rounded.Close, C.Surface, C.Text, "بستن", onClose)
         }
 
         if (isHer) {
