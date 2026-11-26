@@ -172,7 +172,6 @@ fun StatsTab(vm: AppVM) {
                     val starts = engine.periods.count { inMonth(it.start) }
                     val moods = monthDays.mapNotNull { it.mood }
                     val topSym = monthDays.flatMap { Fa.realSymptoms(it.symptoms) }.groupingBy { it }.eachCount().maxByOrNull { it.value }
-                    val notesN = s.notes.values.count { inMonth(LocalDate.parse(it.day)) }
                     val pmsDays = if (upTo.isBefore(first)) 0 else (0..ChronoUnit.DAYS.between(first, upTo).toInt()).count { engine.phaseOn(first.plusDays(it.toLong())) == Phase.PMS }
                     Card {
                         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -187,7 +186,6 @@ fun StatsTab(vm: AppVM) {
                                 StatBlock("شروع پریود", Fa.n(starts))
                                 StatBlock("روز خونریزی", Fa.n(bleed))
                                 StatBlock("روز PMS", Fa.n(pmsDays))
-                                StatBlock("یادداشت", Fa.n(notesN))
                             }
                             if (moods.isNotEmpty()) {
                                 val avg = moods.average()
@@ -237,7 +235,6 @@ fun StatsTab(vm: AppVM) {
                     LocalDate.parse(dl.day) >= since && (dl.mood != null || dl.energy != null || dl.symptoms.isNotEmpty())
                 }
                 val bleedDays = engine.bleedingSet.count { it >= since }
-                val noteCount = s.notes.values.count { LocalDate.parse(it.day) >= since }
                 Reveal(4) {
                     Card {
                         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -245,7 +242,6 @@ fun StatsTab(vm: AppVM) {
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                 StatBlock("روز خونریزی", Fa.n(bleedDays))
                                 StatBlock("روز ثبت‌شده", Fa.n(loggedDays))
-                                StatBlock("یادداشت", Fa.n(noteCount))
                             }
                         }
                     }
@@ -347,25 +343,6 @@ fun StatsTab(vm: AppVM) {
                                     13.sp, FontWeight.Medium, C.Green,
                                     Modifier.align(Alignment.CenterHorizontally).pressable { showAll = !showAll }.padding(8.dp),
                                 )
-                            }
-                        }
-                    }
-                }
-
-                // ---- notes
-                val notes = s.notes.values.sortedByDescending { it.day }.take(6)
-                if (notes.isNotEmpty()) Reveal(8) {
-                    Card {
-                        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                            Txt("یادداشت‌ها", 14.sp, color = C.Muted)
-                            notes.forEach { n ->
-                                Column {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Txt(Fa.date(LocalDate.parse(n.day), "d MMMM"), 12.sp, FontWeight.Medium, C.Green)
-                                        if (isHer) Txt(if (n.shared) "  ·  مشترک" else "  ·  خصوصی", 12.sp, color = C.Muted)
-                                    }
-                                    Txt(n.body, 14.sp, maxLines = 3)
-                                }
                             }
                         }
                     }

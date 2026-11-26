@@ -62,14 +62,6 @@ data class DayLog(
 )
 
 @Serializable
-data class Note(
-    @SerialName("user_id") val userId: String,
-    val day: String,
-    val body: String,
-    val shared: Boolean = false,
-)
-
-@Serializable
 data class Message(
     val id: String,
     @SerialName("from_id") val fromId: String,
@@ -88,17 +80,15 @@ class Snapshot(
     val owner: Profile?,
     val logs: Set<java.time.LocalDate>,
     val days: Map<java.time.LocalDate, DayLog> = emptyMap(),
-    val notes: Map<java.time.LocalDate, Note> = emptyMap(),
     val inbox: List<Message> = emptyList(),
 ) {
     fun with(
         logs: Set<java.time.LocalDate> = this.logs,
         days: Map<java.time.LocalDate, DayLog> = this.days,
-        notes: Map<java.time.LocalDate, Note> = this.notes,
         inbox: List<Message> = this.inbox,
-    ) = Snapshot(me, pairs, others, owner, logs, days, notes, inbox)
+    ) = Snapshot(me, pairs, others, owner, logs, days, inbox)
 
-    fun withMe(m: Profile) = Snapshot(m, pairs, others, if (owner?.id == m.id) m else owner, logs, days, notes, inbox)
+    fun withMe(m: Profile) = Snapshot(m, pairs, others, if (owner?.id == m.id) m else owner, logs, days, inbox)
 
     val activePair: PairRow? get() = pairs.firstOrNull { it.status == "active" }
 }

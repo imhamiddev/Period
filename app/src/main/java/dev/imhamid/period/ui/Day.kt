@@ -61,15 +61,9 @@ fun DaySheet(vm: AppVM, day: LocalDate, onClose: () -> Unit) {
         owner?.toEngine(today, s.logs)
     }
     val dl = s.days[day]
-    val note = s.notes[day]
     val logged = engine?.isLogged(day) == true
     val phase = engine?.phaseOn(day)
     val ownerName = owner?.name?.takeIf { it.isNotBlank() } ?: "پارتنرت"
-
-    var text by remember(day) { mutableStateOf(note?.body.orEmpty()) }
-    var shared by remember(day) { mutableStateOf(note?.shared ?: false) }
-    var saved by remember { mutableStateOf(false) }
-    LaunchedEffect(saved) { if (saved) { delay(1500); saved = false } }
 
     Column(
         Modifier.fillMaxWidth().fillMaxHeight(0.88f)
@@ -160,35 +154,6 @@ fun DaySheet(vm: AppVM, day: LocalDate, onClose: () -> Unit) {
             if (!isHer && Fa.realSymptoms(dl?.symptoms.orEmpty()).isEmpty()) Txt("علامتی ثبت نشده", 13.sp, color = C.Muted)
         }
 
-        // ---- note
-        if (isHer) {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Txt("یادداشت", 14.sp, color = C.Muted)
-                Field(text, { text = it }, "هر چی تو دلته…", singleLine = false, imeAction = androidx.compose.ui.text.input.ImeAction.Default)
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Txt("نمایش به پارتنر", 15.sp, FontWeight.Medium)
-                        Txt(if (shared) "پارتنرت می‌تونه ببینه" else "فقط برای خودت", 12.sp, color = C.Muted)
-                    }
-                    Switch(
-                        shared, { shared = it },
-                        colors = SwitchDefaults.colors(checkedTrackColor = C.Green, checkedThumbColor = Color.White, uncheckedTrackColor = C.Track, uncheckedThumbColor = Color.White, uncheckedBorderColor = Color.Transparent),
-                    )
-                }
-                PrimaryButton(
-                    if (saved) "ذخیره شد ✓" else "ذخیره‌ی یادداشت",
-                    { vm.saveNote(day, text, shared); saved = true },
-                    kind = if (saved) BtnKind.Lime else BtnKind.Dark,
-                )
-            }
-        } else if (note != null) {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Txt("یادداشت $ownerName", 14.sp, color = C.Muted)
-                Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(C.Surface).border(1.dp, C.Line, RoundedCornerShape(20.dp)).padding(16.dp)) {
-                    Txt(note.body, 15.sp)
-                }
-            }
-        }
         Spacer(Modifier.height(12.dp))
     }
 }
