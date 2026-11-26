@@ -97,7 +97,6 @@ class MainActivity : FragmentActivity() {
             else -> (resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
         }
         C.accent = vm.accent
-        if (vm.liveNotify && vm.signedIn) dev.imhamid.period.notify.LiveService.start(this)
         locked = vm.lockEnabled && dev.imhamid.period.ui.Biometrics.available(this)
         setContent {
             // With the app lock on, hide the content from screenshots, screen recording and the Recents thumbnail.
