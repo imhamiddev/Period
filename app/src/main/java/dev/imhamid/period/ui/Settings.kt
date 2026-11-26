@@ -67,18 +67,8 @@ internal fun SettingsTab(vm: AppVM) {
     val ctx = LocalContext.current
     var editName by remember { mutableStateOf(false) }
     var nameText by remember(me.name) { mutableStateOf(me.name.orEmpty()) }
-    var confirmDelete by remember { mutableStateOf(false) }
 
     var confirmLogout by remember { mutableStateOf(false) }
-    if (confirmDelete) {
-        ConfirmDialog(
-            title = "حذف حساب؟",
-            text = "حساب، چرخه‌ها، یادداشت‌ها و پیام‌هات برای همیشه از سرور پاک می‌شن و قابل برگشت نیست. اتصال به اینترنت لازمه.",
-            confirm = "حذف برای همیشه",
-            onConfirm = { confirmDelete = false; vm.deleteAccount() },
-            onDismiss = { confirmDelete = false },
-        )
-    }
     if (confirmLogout) {
         ConfirmDialog(
             title = "خروج از حساب؟",
@@ -175,8 +165,6 @@ internal fun SettingsTab(vm: AppVM) {
             Reveal(4) {
                 SettingsSection(Icons.Rounded.Notifications, "نوتیفیکیشن", if (isHer) "یادآوری PMS و پریود" else "خبر PMS و پریود پارتنرت") {
                     SettingSwitch("فعال بودن اعلان‌ها", "کلید اصلی همه‌ی نوتیف‌ها", me.notifyEnabled) { v -> vm.patch { put("notify_enabled", v) } }
-                    SettingsDivider()
-                    SettingSwitch("اعلان فوری پیام‌ها", "پیام‌ها تا حدود ۲۰ ثانیه بعد می‌رسن؛ یه اعلان کوچیک ثابت نشون می‌ده (فقط روی همین گوشی)", vm.liveNotify) { v -> vm.chooseLiveNotify(v) }
                     androidx.compose.animation.AnimatedVisibility(me.notifyEnabled) {
                         Column {
                             SettingsDivider()
@@ -257,17 +245,13 @@ internal fun SettingsTab(vm: AppVM) {
                             )
                         }
                         if (vm.pendingChanges > 0) Txt("${Fa.n(vm.pendingChanges)} تغییر روی گوشی منتظر ارسال به سرور", 12.sp, color = C.Muted)
-                        PrimaryButton("همگام‌سازی حالا", { vm.refresh() }, kind = BtnKind.Light, modifier = Modifier.border(1.dp, C.Line, RoundedCornerShape(29.dp)))
-                        PrimaryButton("بررسی آپدیت", { vm.checkUpdate() }, kind = BtnKind.Lime)
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            PrimaryButton("همگام‌سازی", { vm.refresh() }, kind = BtnKind.Light, modifier = Modifier.weight(1f).border(1.dp, C.Line, RoundedCornerShape(29.dp)))
+                            PrimaryButton("بررسی آپدیت", { vm.checkUpdate() }, kind = BtnKind.Lime, modifier = Modifier.weight(1f))
+                        }
                         PrimaryButton(
-                            "خروج از حساب", { confirmLogout = true }, kind = BtnKind.Light,
-                            modifier = Modifier.border(1.dp, C.Line, RoundedCornerShape(29.dp)),
-                            icon = { Icon(Icons.AutoMirrored.Rounded.Logout, null, tint = C.Text, modifier = Modifier.size(20.dp)) },
-                        )
-                        Txt(
-                            "حذف حساب و همه‌ی داده‌ها", 14.sp, FontWeight.Medium, C.Coral,
-                            Modifier.fillMaxWidth().pressable { confirmDelete = true }.padding(vertical = 12.dp),
-                            align = androidx.compose.ui.text.style.TextAlign.Center,
+                            "خروج از حساب", { confirmLogout = true }, kind = BtnKind.Danger,
+                            icon = { Icon(Icons.AutoMirrored.Rounded.Logout, null, tint = Color.White, modifier = Modifier.size(20.dp)) },
                         )
                     }
                 }
