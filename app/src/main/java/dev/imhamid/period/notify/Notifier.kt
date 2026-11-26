@@ -80,14 +80,33 @@ object Notifier {
             }
         }
 
-        // Cycle events show up from the user's chosen hour.
-        if (LocalTime.now().hour < me.notifyHour) return
         val owner = snap.owner ?: return
         if (!owner.shareEnabled && me.role == "partner") return
-        val engine = owner.toEngine(today, snap.logs)
         val forHer = me.role == "her"
         val herName = owner.name?.takeIf { it.isNotBlank() } ?: "پارتنرت"
         val partnerTone = forHer || Fa.isPartnerLabel(snap.activePair?.label)
+
+        // Her mood → tell the partner right away (any hour), once per day and mood value.
+        // Only the last two days are considered, so old entries never trigger a burst of alerts.
+        if (!forHer) {
+            val since = today.minusDays(1)
+            snap.days.values
+                .filter { it.userId == owner.id && it.mood != null }
+                .mapNotNull { dl -> runCatching { LocalDate.parse(dl.day) }.getOrNull()?.takeIf { !it.isBefore(since) }?.let { it to dl } }
+                .sortedBy { it.first }
+                .forEach { (day, dl) ->
+                    val mood = dl.mood ?: return@forEach
+                    val key = "mood-$day-$mood"
+                    if (store.claim(key)) {
+                        val text = Fa.moodNotif(mood, herName, partnerTone)
+                        post(ctx, key.hashCode(), text.first, text.second)
+                    }
+                }
+        }
+
+        // Cycle events show up from the user's chosen hour.
+        if (LocalTime.now().hour < me.notifyHour) return
+        val engine = owner.toEngine(today, snap.logs)
         engine.dueEvents().forEach { ev ->
             val allowed = when (ev) {
                 EventType.PMS_TOMORROW, EventType.PMS_STARTS -> me.notifyPms
@@ -96,7 +115,7 @@ object Notifier {
                 EventType.PERIOD_LATE -> me.notifyLate
             }
             val key = "${ev.name}-$today"
-            // claim() marks the key atomically, so the worker and the live service never both notify for it
+            // claim() marks the key atomically, so two runs never both notify for it
             if (allowed && store.claim(key)) {
                 val text = if (partnerTone) Fa.notif(ev, herName, forHer) else Fa.supportNotif(ev, herName)
                 if (text != null) post(ctx, key.hashCode(), text.first, text.second)

@@ -20,7 +20,6 @@ data class CacheDto(
     val ownerId: String?,
     val logs: List<String>,
     val days: List<DayLog>,
-    val notes: List<Note>,
     val inbox: List<Message>,
 )
 
@@ -29,7 +28,7 @@ object Offline {
         runCatching {
             val dto = CacheDto(
                 s.me, s.pairs, s.others.values.toList(), s.owner?.id,
-                s.logs.map { it.toString() }, s.days.values.toList(), s.notes.values.toList(), s.inbox,
+                s.logs.map { it.toString() }, s.days.values.toList(), s.inbox,
             )
             val str = Api.json.encodeToString(CacheDto.serializer(), dto)
             if (str != store.cacheJson) store.cacheJson = str
@@ -50,7 +49,6 @@ object Offline {
                     d.me, d.pairs, others, owner,
                     d.logs.map { LocalDate.parse(it) }.toSet(),
                     d.days.associateBy { LocalDate.parse(it.day) },
-                    d.notes.associateBy { LocalDate.parse(it.day) },
                     d.inbox,
                 )
             }
@@ -63,7 +61,7 @@ object Offline {
 /** A change made while offline (or not yet confirmed by the server). */
 @Serializable
 data class PendingOp(
-    val type: String, // day | days | daylog | note | delnote | profile | msg
+    val type: String, // day | days | daylog | profile | msg
     val day: String? = null,
     val on: Boolean = false,
     val days: List<String> = emptyList(),
@@ -76,7 +74,6 @@ data class PendingOp(
         get() = when (type) {
             "day" -> "day:$day"
             "daylog" -> "daylog:$day"
-            "note", "delnote" -> "note:$day"
             else -> null
         }
 }

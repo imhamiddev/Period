@@ -17,8 +17,6 @@ import dev.imhamid.period.data.Repo
 import dev.imhamid.period.data.SessionStore
 import dev.imhamid.period.data.DayLog
 import dev.imhamid.period.data.PairRow
-import dev.imhamid.period.notify.LiveService
-import dev.imhamid.period.data.Note
 import dev.imhamid.period.data.Offline
 import dev.imhamid.period.data.PendingOp
 import dev.imhamid.period.data.patched
@@ -57,7 +55,6 @@ class AppVM(private val app: Application) : AndroidViewModel(app) {
     var savedMessages by mutableStateOf(store.savedMessages)
     var accent by mutableIntStateOf(store.accent)
     var pairLabels by mutableStateOf(store.pairLabels)
-    var liveNotify by mutableStateOf(store.liveNotify)
 
     /** True while the server cannot be reached; everything keeps working from the saved copy. */
     var offline by mutableStateOf(false)
@@ -67,7 +64,6 @@ class AppVM(private val app: Application) : AndroidViewModel(app) {
     private var netCallback: ConnectivityManager.NetworkCallback? = null
 
     private val dayJobs = mutableMapOf<LocalDate, Job>()
-    private val noteJobs = mutableMapOf<LocalDate, Job>()
 
     val route: Route
         get() {
@@ -214,23 +210,6 @@ class AppVM(private val app: Application) : AndroidViewModel(app) {
         logoutLocal()
     }
 
-    /** Deletes the account and all its server data for good (needs a connection), then signs out. */
-    fun deleteAccount() {
-        viewModelScope.launch {
-            busy = true
-            try {
-                repo.deleteAccount()
-                LiveService.stop(app)
-                liveNotify = false
-                logoutLocal()
-            } catch (e: Exception) {
-                fail(e)
-            } finally {
-                busy = false
-            }
-        }
-    }
-
     // ------------------------------------------------------------------ profile
     fun patch(block: JsonObjectBuilder.() -> Unit) {
         val s = snap ?: return
@@ -308,7 +287,7 @@ class AppVM(private val app: Application) : AndroidViewModel(app) {
         toggleDay(d)
     }
 
-    // ------------------------------------------------------------------ mood / symptoms / notes
+    // ------------------------------------------------------------------ mood / symptoms
     fun saveDay(day: LocalDate, mood: Int?, energy: Int?, symptoms: List<String>) {
         val s = snap ?: return
         if (s.me.role != "her") return
@@ -317,23 +296,6 @@ class AppVM(private val app: Application) : AndroidViewModel(app) {
         queue(PendingOp("daylog", day = day.toString(), payload = dev.imhamid.period.data.Api.json.encodeToString(DayLog.serializer(), dl)))
         dayJobs[day]?.cancel()
         dayJobs[day] = viewModelScope.launch {
-            delay(450)
-            flushNow()
-        }
-    }
-
-    fun saveNote(day: LocalDate, text: String, shared: Boolean) {
-        val s = snap ?: return
-        if (s.me.role != "her") return
-        val body = text.trim()
-        snap = if (body.isEmpty()) s.with(notes = s.notes - day) else s.with(notes = s.notes + (day to Note(s.me.id, day.toString(), body, shared)))
-        val note = Note(s.me.id, day.toString(), body, shared)
-        queue(
-            if (body.isEmpty()) PendingOp("delnote", day = day.toString())
-            else PendingOp("note", day = day.toString(), payload = dev.imhamid.period.data.Api.json.encodeToString(Note.serializer(), note)),
-        )
-        noteJobs[day]?.cancel()
-        noteJobs[day] = viewModelScope.launch {
             delay(450)
             flushNow()
         }
@@ -354,7 +316,7 @@ class AppVM(private val app: Application) : AndroidViewModel(app) {
         }
     }
 
-    // ------------------------------------------------------------------ roles / appearance / live alerts
+    // ------------------------------------------------------------------ roles / appearance
     fun labelOf(p: PairRow): String? = p.label?.takeIf { it.isNotBlank() } ?: pairLabels[p.id]?.takeIf { it.isNotBlank() }
 
     /** "Name (role)" for a connection, from the point of view of the current user. */
@@ -381,12 +343,6 @@ class AppVM(private val app: Application) : AndroidViewModel(app) {
         store.accent = i
         accent = i
         C.accent = i
-    }
-
-    fun chooseLiveNotify(v: Boolean) {
-        store.liveNotify = v
-        liveNotify = v
-        if (v) LiveService.start(app) else LiveService.stop(app)
     }
 
     fun setFlow(day: LocalDate, flow: String?) {

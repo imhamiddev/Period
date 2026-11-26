@@ -161,7 +161,7 @@ fun Reveal(index: Int = 0, modifier: Modifier = Modifier, content: @Composable (
     Box(modifier.graphicsLayer { this.alpha = alpha; translationY = off.toPx() }) { content() }
 }
 
-enum class BtnKind { Dark, Light, Glass, Lime }
+enum class BtnKind { Dark, Light, Glass, Lime, Danger }
 
 @Composable
 fun PrimaryButton(
@@ -179,6 +179,7 @@ fun PrimaryButton(
             kind == BtnKind.Dark -> C.Ink
             kind == BtnKind.Light -> C.Surface
             kind == BtnKind.Lime -> C.Lime
+            kind == BtnKind.Danger -> Color(0xFFE5484D)
             else -> Color.White.copy(alpha = 0.18f)
         },
         label = "btnbg",
@@ -188,6 +189,7 @@ fun PrimaryButton(
         BtnKind.Light -> C.Text
         BtnKind.Lime -> C.Deep
         BtnKind.Glass -> Color.White
+        BtnKind.Danger -> Color.White
     }
     val src = remember { MutableInteractionSource() }
     val pressed by src.collectIsPressedAsState()

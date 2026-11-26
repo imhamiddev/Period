@@ -3,7 +3,7 @@ package dev.imhamid.period.data
 import android.content.Context
 
 /**
- * Everything the app keeps on the phone. Anything personal (tokens, the offline copy of her cycle/notes,
+ * Everything the app keeps on the phone. Anything personal (tokens, the offline copy of her cycle,
  * the queue of unsent changes, saved messages) is encrypted with [SecureBox]; plain settings (theme, lock
  * switch, …) stay as ordinary preferences.
  */
@@ -62,11 +62,6 @@ class SessionStore(ctx: Context) {
     var accent: Int
         get() = p.getInt("accent", 0)
         set(v) = p.edit().putInt("accent", v).apply()
-
-    /** Instant message alerts via a small foreground service (device-local). */
-    var liveNotify: Boolean
-        get() = p.getBoolean("live", false)
-        set(v) = p.edit().putBoolean("live", v).apply()
 
     /** Labels (mother, sister, …) she gave her connections; kept here as a fallback to the server value. */
     var pairLabels: Map<String, String>

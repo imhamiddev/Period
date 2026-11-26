@@ -143,21 +143,10 @@ class Repo(private val store: SessionStore) {
         authed("DELETE", "/rest/v1/pairs?id=eq.$pairId")
     }
 
-    /** Permanently deletes the account and all its data on the server, then wipes this phone. */
-    suspend fun deleteAccount() {
-        authed("POST", "/rest/v1/rpc/delete_my_account", "{}")
-        store.clear()
-    }
-
-    // ------------------------------------------------------------------ mood / notes / messages
+    // ------------------------------------------------------------------ mood / messages
     suspend fun dayLogs(userId: String): Map<LocalDate, DayLog> {
         val s = authed("GET", "/rest/v1/daily_logs?user_id=eq.$userId&select=*&order=day.desc&limit=400")
         return json.decodeFromString(ListSerializer(DayLog.serializer()), s).associateBy { LocalDate.parse(it.day) }
-    }
-
-    suspend fun notes(userId: String): Map<LocalDate, Note> {
-        val s = authed("GET", "/rest/v1/notes?user_id=eq.$userId&select=*&order=day.desc&limit=200")
-        return json.decodeFromString(ListSerializer(Note.serializer()), s).associateBy { LocalDate.parse(it.day) }
     }
 
     suspend fun messages(): List<Message> {
@@ -165,24 +154,9 @@ class Repo(private val store: SessionStore) {
         return json.decodeFromString(ListSerializer(Message.serializer()), s)
     }
 
-    /** Cheap check for the live service: ids of unread messages sent to me (no bodies, no joins). */
-    suspend fun unreadIds(): List<String> {
-        val s = authed("GET", "/rest/v1/messages?to_id=eq.$uid&read_at=is.null&select=id&order=created_at.desc&limit=30")
-        return json.decodeFromString(ListSerializer(IdRow.serializer()), s).map { it.id }
-    }
-
     suspend fun upsertDayLog(d: DayLog) {
         authed("POST", "/rest/v1/daily_logs?on_conflict=user_id,day", json.encodeToString(DayLog.serializer(), d),
             mapOf("Prefer" to "resolution=merge-duplicates,return=minimal"))
-    }
-
-    suspend fun upsertNote(n: Note) {
-        authed("POST", "/rest/v1/notes?on_conflict=user_id,day", json.encodeToString(Note.serializer(), n),
-            mapOf("Prefer" to "resolution=merge-duplicates,return=minimal"))
-    }
-
-    suspend fun deleteNote(day: LocalDate) {
-        authed("DELETE", "/rest/v1/notes?user_id=eq.$uid&day=eq.$day")
     }
 
     suspend fun sendMessage(pairId: String, toId: String, body: String) {
@@ -229,9 +203,8 @@ class Repo(private val store: SessionStore) {
     private suspend fun Snapshot.extras(): Snapshot {
         val oid = owner?.id
         val d = if (oid != null) optional<Map<LocalDate, DayLog>>(emptyMap()) { dayLogs(oid) } else emptyMap()
-        val n = if (oid != null) optional<Map<LocalDate, Note>>(emptyMap()) { notes(oid) } else emptyMap()
         val m = optional<List<Message>>(emptyList()) { messages() }
-        return with(days = d, notes = n, inbox = m)
+        return with(days = d, inbox = m)
     }
 
     // ---- offline queue
@@ -244,8 +217,6 @@ class Repo(private val store: SessionStore) {
             "day" -> setDay(LocalDate.parse(op.day!!), op.on)
             "days" -> addDays(op.days.map { LocalDate.parse(it) })
             "daylog" -> upsertDayLog(json.decodeFromString(DayLog.serializer(), op.payload!!))
-            "note" -> upsertNote(json.decodeFromString(Note.serializer(), op.payload!!))
-            "delnote" -> deleteNote(LocalDate.parse(op.day!!))
             "profile" -> updateProfile(json.parseToJsonElement(op.payload!!) as JsonObject)
             "msg" -> sendMessage(op.pairId!!, op.toId!!, op.payload!!)
         }
