@@ -36,6 +36,29 @@ object Fa {
 
     fun jalaliDay(d: LocalDate): String = date(d, "d")
 
+    val jalaliMonths = listOf("فروردین", "اردیبهشت", "خرداد", "تیر", "مرداد", "شهریور", "مهر", "آبان", "آذر", "دی", "بهمن", "اسفند")
+
+    /** (year, month 1..12, day) of [d] in the Jalali calendar. */
+    fun jalaliParts(d: LocalDate): Triple<Int, Int, Int> {
+        val cal = Calendar.getInstance(locale)
+        cal.timeInMillis = d.atStartOfDay(zone).toInstant().toEpochMilli()
+        return Triple(cal.get(Calendar.YEAR), cal.get(Calendar.MONTH) + 1, cal.get(Calendar.DAY_OF_MONTH))
+    }
+
+    fun jalaliMonthLen(y: Int, m: Int): Int {
+        val cal = Calendar.getInstance(locale)
+        cal.clear()
+        cal.set(y, m - 1, 1)
+        return cal.getActualMaximum(Calendar.DAY_OF_MONTH)
+    }
+
+    fun fromJalali(y: Int, m: Int, day: Int): LocalDate {
+        val cal = Calendar.getInstance(locale)
+        cal.clear()
+        cal.set(y, m - 1, day.coerceIn(1, jalaliMonthLen(y, m)))
+        return java.time.Instant.ofEpochMilli(cal.timeInMillis).atZone(zone).toLocalDate()
+    }
+
     fun daysText(n: Int): String = when {
         n == 0 -> "امروز"
         n == 1 -> "فردا"

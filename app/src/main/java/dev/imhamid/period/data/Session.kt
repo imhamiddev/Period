@@ -55,6 +55,16 @@ class SessionStore(ctx: Context) {
         set(v) = setSecure("queue", v)
 
     /** 0 = follow system, 1 = light, 2 = dark. */
+    /** App settings (units, reminder, language…). Keys are stored as pf_<key> and survive sign-out. */
+    fun prefs(): Map<String, String> =
+        p.all.filterKeys { it.startsWith("pf_") }.mapNotNull { (k, v) -> (v as? String)?.let { k.removePrefix("pf_") to it } }.toMap()
+
+    fun setPref(key: String, value: String) = p.edit().putString("pf_$key", value).apply()
+
+    var articlesJson: String?
+        get() = p.getString("articles", null)
+        set(v) = p.edit().putString("articles", v).apply()
+
     var themeMode: Int
         get() = p.getInt("theme", 0)
         set(v) = p.edit().putInt("theme", v).apply()
@@ -107,7 +117,11 @@ class SessionStore(ctx: Context) {
         val lock = lockEnabled
         val theme = themeMode
         val acc = accent
-        p.edit().clear().putBoolean("intro", intro).putBoolean("lock", lock).putInt("theme", theme).putInt("accent", acc).apply()
+        val personal = setOf("pf_cards", "pf_pay_sel", "pf_premium", "pf_plan", "pf_plan_date", "pf_plan_sel")
+        val settings = p.all.filterKeys { it.startsWith("pf_") && it !in personal }
+        p.edit().clear().putBoolean("intro", intro).putBoolean("lock", lock).putInt("theme", theme).putInt("accent", acc).apply {
+            settings.forEach { (k, v) -> if (v is String) putString(k, v) }
+        }.apply()
     }
 
     // ---- notification de-duplication (ordered list, oldest dropped first)

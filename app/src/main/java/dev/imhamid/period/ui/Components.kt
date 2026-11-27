@@ -133,7 +133,7 @@ fun Aurora(modifier: Modifier = Modifier, content: @Composable BoxScope.() -> Un
     val b by t.animateFloat(0f, 1f, infiniteRepeatable(tween(17000, easing = LinearEasing), RepeatMode.Reverse), label = "b")
     Box(
         modifier
-            .background(Brush.verticalGradient(listOf(C.AuroraTop, C.Green, C.GreenMid, C.Deep)))
+            .background(Brush.verticalGradient(listOf(C.AuroraTop, C.Pink, C.PinkMid, C.Deep)))
             .drawBehind {
                 val w = size.width
                 val h = size.height
@@ -227,10 +227,9 @@ fun Card(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
     Box(
         modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(28.dp))
+            .clip(RoundedCornerShape(18.dp))
             .background(C.Surface)
-            .border(BorderStroke(1.dp, C.Line), RoundedCornerShape(28.dp))
-            .padding(20.dp),
+            .padding(16.dp),
     ) { content() }
 }
 
@@ -249,7 +248,7 @@ fun Field(
 ) {
     var focused by remember { mutableStateOf(false) }
     var show by remember { mutableStateOf(false) }
-    val border by animateColorAsState(if (focused) C.Green else C.Line, tween(200), label = "fb")
+    val border by animateColorAsState(if (focused) C.Pink else C.Line, tween(200), label = "fb")
     val width by animateDpAsState(if (focused) 2.dp else 1.dp, tween(200), label = "fw")
     Box(modifier) {
         androidx.compose.foundation.layout.Column {
@@ -286,7 +285,7 @@ fun Field(
                         fontFamily = Vazir, fontSize = 16.sp, color = C.Text,
                         textDirection = if (ltr || password) TextDirection.Ltr else TextDirection.Content,
                     ),
-                    cursorBrush = SolidColor(C.Green),
+                    cursorBrush = SolidColor(C.Pink),
                     visualTransformation = if (password && !show) PasswordVisualTransformation() else VisualTransformation.None,
                     keyboardOptions = KeyboardOptions(keyboardType = if (password) KeyboardType.Password else keyboardType, imeAction = imeAction),
                     keyboardActions = KeyboardActions(onDone = { onDone() }, onGo = { onDone() }),
