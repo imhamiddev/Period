@@ -26,6 +26,31 @@ data class Profile(
     val hormonal: Boolean = false,
 )
 
+/** Only she can read this (private_profile table). */
+@Serializable
+data class Body(
+    @SerialName("user_id") val userId: String,
+    @SerialName("birth_date") val birthDate: String? = null,
+    @SerialName("height_cm") val heightCm: Double? = null,
+    @SerialName("weight_kg") val weightKg: Double? = null,
+    val gender: String = "female",
+    val phone: String? = null,
+    @SerialName("water_goal_ml") val waterGoalMl: Int = 2400,
+    @SerialName("cup_ml") val cupMl: Int = 200,
+)
+
+/** Medicines, note, weight, temperature and water for one day. Only she can read this (health_logs table). */
+@Serializable
+data class HealthLog(
+    @SerialName("user_id") val userId: String,
+    val day: String,
+    val medicines: List<String> = emptyList(),
+    val note: String? = null,
+    @SerialName("weight_kg") val weightKg: Double? = null,
+    @SerialName("temperature_c") val temperatureC: Double? = null,
+    @SerialName("water_ml") val waterMl: Int? = null,
+)
+
 @Serializable
 data class PairRow(
     val id: String,
@@ -59,6 +84,18 @@ data class DayLog(
     val mood: Int? = null,
     val energy: Int? = null,
     val symptoms: List<String> = emptyList(),
+    val moods: List<String> = emptyList(),
+)
+
+@Serializable
+data class Article(
+    val id: String,
+    val category: String,
+    val title: String,
+    val summary: String = "",
+    val body: String,
+    val icon: String = "drop",
+    val sort: Int = 0,
 )
 
 @Serializable
@@ -81,14 +118,18 @@ class Snapshot(
     val logs: Set<java.time.LocalDate>,
     val days: Map<java.time.LocalDate, DayLog> = emptyMap(),
     val inbox: List<Message> = emptyList(),
+    val body: Body? = null,
+    val health: Map<java.time.LocalDate, HealthLog> = emptyMap(),
 ) {
     fun with(
         logs: Set<java.time.LocalDate> = this.logs,
         days: Map<java.time.LocalDate, DayLog> = this.days,
         inbox: List<Message> = this.inbox,
-    ) = Snapshot(me, pairs, others, owner, logs, days, inbox)
+        body: Body? = this.body,
+        health: Map<java.time.LocalDate, HealthLog> = this.health,
+    ) = Snapshot(me, pairs, others, owner, logs, days, inbox, body, health)
 
-    fun withMe(m: Profile) = Snapshot(m, pairs, others, if (owner?.id == m.id) m else owner, logs, days, inbox)
+    fun withMe(m: Profile) = Snapshot(m, pairs, others, if (owner?.id == m.id) m else owner, logs, days, inbox, body, health)
 
     val activePair: PairRow? get() = pairs.firstOrNull { it.status == "active" }
 }

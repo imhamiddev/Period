@@ -36,27 +36,64 @@ object Notifier {
         Build.VERSION.SDK_INT < 33 ||
             ContextCompat.checkSelfPermission(ctx, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
 
-    fun post(ctx: Context, id: Int, title: String, text: String) {
+    fun post(ctx: Context, id: Int, title: String, text: String, channel: String = CHANNEL) {
         if (!canPost(ctx)) return
         val pi = PendingIntent.getActivity(
             ctx, 0, Intent(ctx, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
-        val n = NotificationCompat.Builder(ctx, CHANNEL)
+        val n = NotificationCompat.Builder(ctx, channel)
             .setSmallIcon(R.drawable.ic_notif)
             .setContentTitle(title)
             .setContentText(text)
             .setStyle(NotificationCompat.BigTextStyle().bigText(text))
-            .setColor(0xFF2E8F3E.toInt())
+            .setColor(0xFFFF6B9D.toInt())
             .setAutoCancel(true)
             .setContentIntent(pi)
             .build()
         runCatching { NotificationManagerCompat.from(ctx).notify(id, n) }
     }
 
+    private val reminderTexts = listOf(
+        "امروز حالت چطور بود؟ یه لاگ کوچیک ثبت کن 💗" to "چند ثانیه بیشتر وقت نمی‌بره.",
+        "یادت نره امروزت رو ثبت کنی 🌸" to "حال‌وهوا، علائم یا یه یادداشت کوتاه.",
+        "وقت ثبت روزانه‌ست ✨" to "هرچی دقیق‌تر ثبت کنی، پیش‌بینی‌ها بهتر می‌شن.",
+        "سلام! امروز چه خبر از بدنت؟ 🌷" to "یه نگاه به حال‌وهوات بنداز و ثبتش کن.",
+        "یه لحظه برای خودت 🫶" to "لاگ امروزت رو بنویس تا چرخه‌ات رو بهتر بشناسی.",
+        "امروز آب خوردی؟ 💧" to "آب، حال‌وهوا و علائمت رو ثبت کن.",
+    )
+
+    /** Daily "log your day" reminder: at the chosen time, only if nothing was logged today. */
+    private fun dailyReminder(ctx: Context, store: SessionStore, snap: Snapshot) {
+        val pf = store.prefs()
+        if (pf["rem_on"] != "true") return
+        val minutes = pf["rem_min"]?.toIntOrNull() ?: 540
+        val now = LocalTime.now()
+        if (now.hour * 60 + now.minute < minutes) return
+        val today = LocalDate.now()
+        if (snap.days[today] != null || snap.health[today] != null || today in snap.logs) return
+        if (!store.claim("rem-$today")) return
+        val tone = pf["rem_tone"].orEmpty()
+        val vib = pf["rem_vib"] != "false"
+        val channel = "daily_" + (tone + vib).hashCode()
+        if (Build.VERSION.SDK_INT >= 26) {
+            val nm = ctx.getSystemService(NotificationManager::class.java)
+            if (nm.getNotificationChannel(channel) == null) {
+                val ch = NotificationChannel(channel, "یادآور ثبت روزانه", NotificationManager.IMPORTANCE_DEFAULT)
+                val uri = if (tone.isBlank()) android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_NOTIFICATION) else android.net.Uri.parse(tone)
+                ch.setSound(uri, android.media.AudioAttributes.Builder().setUsage(android.media.AudioAttributes.USAGE_NOTIFICATION).build())
+                ch.enableVibration(vib)
+                nm.createNotificationChannel(ch)
+            }
+        }
+        val t = reminderTexts.random()
+        post(ctx, ("rem-$today").hashCode(), t.first, t.second, channel)
+    }
+
     /** Called by the background worker with fresh data. */
     fun process(ctx: Context, store: SessionStore, snap: Snapshot) {
         val me = snap.me
+        if (me.role == "her") dailyReminder(ctx, store, snap)
         if (!me.notifyEnabled) return
         val today = LocalDate.now()
 
@@ -96,10 +133,11 @@ object Notifier {
                 .sortedBy { it.first }
                 .forEach { (day, dl) ->
                     val mood = dl.mood ?: return@forEach
-                    val key = "mood-$day-$mood"
+                    val key = "mood-$day-$mood-${dl.moods.sorted().joinToString(",")}"
                     if (store.claim(key)) {
                         val text = Fa.moodNotif(mood, herName, partnerTone)
-                        post(ctx, key.hashCode(), text.first, text.second)
+                        val picked = dl.moods.mapNotNull { dev.imhamid.period.ui.Catalog.mood(it) }.joinToString("  ") { "${it.emoji} ${it.label}" }
+                        post(ctx, key.hashCode(), text.first, if (picked.isBlank()) text.second else "${text.second}\n$picked")
                     }
                 }
         }

@@ -149,6 +149,59 @@ class Repo(private val store: SessionStore) {
         return json.decodeFromString(ListSerializer(DayLog.serializer()), s).associateBy { LocalDate.parse(it.day) }
     }
 
+    // ------------------------------------------------------------------ private body profile + health log (only the owner)
+    suspend fun body(): Body? {
+        val s = authed("GET", "/rest/v1/private_profile?user_id=eq.$uid&select=*")
+        return json.decodeFromString(ListSerializer(Body.serializer()), s).firstOrNull()
+    }
+
+    suspend fun upsertBody(b: Body) {
+        authed("POST", "/rest/v1/private_profile?on_conflict=user_id", json.encodeToString(Body.serializer(), b),
+            mapOf("Prefer" to "resolution=merge-duplicates,return=minimal"))
+    }
+
+    suspend fun healthLogs(): Map<LocalDate, HealthLog> {
+        val s = authed("GET", "/rest/v1/health_logs?user_id=eq.$uid&select=*&order=day.desc&limit=800")
+        return json.decodeFromString(ListSerializer(HealthLog.serializer()), s).associateBy { LocalDate.parse(it.day) }
+    }
+
+    suspend fun upsertHealth(h: HealthLog) {
+        authed("POST", "/rest/v1/health_logs?on_conflict=user_id,day", json.encodeToString(HealthLog.serializer(), h),
+            mapOf("Prefer" to "resolution=merge-duplicates,return=minimal"))
+    }
+
+    suspend fun articles(): List<Article> {
+        val s = authed("GET", "/rest/v1/articles?select=*&order=sort.asc&limit=200")
+        return json.decodeFromString(ListSerializer(Article.serializer()), s)
+    }
+
+    suspend fun sendTicket(subject: String, message: String) {
+        val b = buildJsonObject { put("user_id", uid); put("subject", subject); put("message", message) }.toString()
+        authed("POST", "/rest/v1/support_tickets", b, mapOf("Prefer" to "return=minimal"))
+    }
+
+    // ------------------------------------------------------------------ password reset (email code) / change
+    suspend fun requestReset(email: String) {
+        Api.raw("POST", "/auth/v1/recover", buildJsonObject { put("email", email.trim()) }.toString())
+    }
+
+    /** Checks the 6-digit code from the e-mail; on success the user is signed in (so the new password can be set). */
+    suspend fun verifyResetCode(email: String, code: String) {
+        val body = buildJsonObject { put("type", "recovery"); put("email", email.trim()); put("token", code.trim()) }.toString()
+        val r = json.decodeFromString<AuthResponse>(Api.raw("POST", "/auth/v1/verify", body))
+        if (r.accessToken == null) throw ApiException(400, "کد درست نیست")
+        store.save(r)
+    }
+
+    suspend fun changePassword(newPassword: String) {
+        authed("PUT", "/auth/v1/user", buildJsonObject { put("password", newPassword) }.toString())
+    }
+
+    /** Signs this account out of every device. */
+    suspend fun signOutEverywhere() {
+        runCatching { authed("POST", "/auth/v1/logout?scope=global") }
+    }
+
     suspend fun messages(): List<Message> {
         val s = authed("GET", "/rest/v1/messages?select=*&order=created_at.desc&limit=30")
         return json.decodeFromString(ListSerializer(Message.serializer()), s)
@@ -204,7 +257,10 @@ class Repo(private val store: SessionStore) {
         val oid = owner?.id
         val d = if (oid != null) optional<Map<LocalDate, DayLog>>(emptyMap()) { dayLogs(oid) } else emptyMap()
         val m = optional<List<Message>>(emptyList()) { messages() }
-        return with(days = d, inbox = m)
+        if (me.role != "her") return with(days = d, inbox = m)
+        val b = optional<Body?>(null) { body() }
+        val h = optional<Map<LocalDate, HealthLog>>(emptyMap()) { healthLogs() }
+        return with(days = d, inbox = m, body = b, health = h)
     }
 
     // ---- offline queue
@@ -217,6 +273,8 @@ class Repo(private val store: SessionStore) {
             "day" -> setDay(LocalDate.parse(op.day!!), op.on)
             "days" -> addDays(op.days.map { LocalDate.parse(it) })
             "daylog" -> upsertDayLog(json.decodeFromString(DayLog.serializer(), op.payload!!))
+            "health" -> upsertHealth(json.decodeFromString(HealthLog.serializer(), op.payload!!))
+            "body" -> upsertBody(json.decodeFromString(Body.serializer(), op.payload!!))
             "profile" -> updateProfile(json.parseToJsonElement(op.payload!!) as JsonObject)
             "msg" -> sendMessage(op.pairId!!, op.toId!!, op.payload!!)
         }

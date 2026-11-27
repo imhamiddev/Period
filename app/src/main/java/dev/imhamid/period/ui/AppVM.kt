@@ -16,6 +16,13 @@ import dev.imhamid.period.data.ApiException
 import dev.imhamid.period.data.Repo
 import dev.imhamid.period.data.SessionStore
 import dev.imhamid.period.data.DayLog
+import dev.imhamid.period.data.Body
+import dev.imhamid.period.data.HealthLog
+import dev.imhamid.period.data.Article
+import androidx.compose.runtime.mutableStateListOf
+import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.add
 import dev.imhamid.period.data.PairRow
 import dev.imhamid.period.data.Offline
 import dev.imhamid.period.data.PendingOp
@@ -56,6 +63,28 @@ class AppVM(private val app: Application) : AndroidViewModel(app) {
     var accent by mutableIntStateOf(store.accent)
     var pairLabels by mutableStateOf(store.pairLabels)
 
+    // ---- navigation on top of the tabs
+    val stack = mutableStateListOf<Screen>()
+    var tab by mutableIntStateOf(0)
+    fun push(s: Screen) { stack.add(s) }
+    fun pop(): Boolean { if (stack.isEmpty()) return false; stack.removeAt(stack.lastIndex); return true }
+    fun popToRoot() = stack.clear()
+
+    // ---- add-log form
+    var draft by mutableStateOf<LogDraft?>(null)
+
+    // ---- auth screens
+    var authMode by mutableStateOf(AuthMode.SignIn)
+    var resetEmail by mutableStateOf("")
+
+    // ---- app settings that live on this phone (units, reminder, language, demo billing…)
+    var prefs by mutableStateOf(store.prefs())
+    fun pref(k: String, d: String) = prefs[k] ?: d
+    fun prefBool(k: String, d: Boolean) = (prefs[k] ?: d.toString()) == "true"
+    fun setPref(k: String, v: String) { store.setPref(k, v); prefs = prefs + (k to v) }
+
+    var articles by mutableStateOf<List<Article>>(emptyList())
+
     /** True while the server cannot be reached; everything keeps working from the saved copy. */
     var offline by mutableStateOf(false)
 
@@ -84,10 +113,12 @@ class AppVM(private val app: Application) : AndroidViewModel(app) {
     init {
         // open instantly from the saved copy, then refresh in the background
         if (signedIn) Offline.load(store)?.let { snap = it; booting = false }
+        WeekCfg.start = pref("wk", "6").toIntOrNull() ?: 6
         watchNetwork()
         viewModelScope.launch {
             if (signedIn) {
                 load()
+                loadArticles()
                 WorkManager.getInstance(app).enqueue(OneTimeWorkRequestBuilder<SyncWorker>().build())
             }
             booting = false
@@ -208,6 +239,122 @@ class AppVM(private val app: Application) : AndroidViewModel(app) {
     fun logout() {
         repo.signOut()
         logoutLocal()
+        stack.clear()
+        tab = 0
+        authMode = AuthMode.SignIn
+    }
+
+    fun logoutEverywhere() {
+        viewModelScope.launch {
+            repo.signOutEverywhere()
+            logout()
+        }
+    }
+
+    fun toast(msg: String) { error = msg }
+
+    private fun authRun(block: suspend () -> Unit) {
+        viewModelScope.launch {
+            busy = true
+            try { block() } catch (e: Exception) { fail(e) } finally { busy = false }
+        }
+    }
+
+    fun signIn(email: String, password: String) {
+        if (email.isBlank() || password.isBlank()) { error = "ایمیل و رمز رو وارد کن"; return }
+        authRun {
+            repo.signIn(email.trim(), password)
+            signedIn = true
+            load()
+            loadArticles()
+            WorkManager.getInstance(app).enqueue(OneTimeWorkRequestBuilder<SyncWorker>().build())
+        }
+    }
+
+    fun signUp(name: String, email: String, password: String) {
+        if (email.isBlank() || !email.contains('@')) { error = "ایمیل معتبر وارد کن"; return }
+        if (password.length < 8) { error = "رمز عبور حداقل ۸ کاراکتر باشه"; return }
+        authRun {
+            try {
+                repo.signUp(email.trim(), password)
+            } catch (e: ApiException) {
+                if (e.message == dev.imhamid.period.data.ERR_EXISTS) throw ApiException(400, "با این ایمیل قبلاً ثبت‌نام شده؛ وارد شو") else throw e
+            }
+            signedIn = true
+            load()
+            loadArticles()
+            if (name.isNotBlank() && snap?.me?.name.isNullOrBlank()) patch { put("name", name.trim()) }
+            WorkManager.getInstance(app).enqueue(OneTimeWorkRequestBuilder<SyncWorker>().build())
+        }
+    }
+
+    fun requestReset(email: String) {
+        if (email.isBlank() || !email.contains('@')) { error = "ایمیل معتبر وارد کن"; return }
+        authRun {
+            repo.requestReset(email)
+            resetEmail = email.trim()
+            authMode = AuthMode.Otp
+        }
+    }
+
+    fun verifyReset(code: String) {
+        if (code.length < 6) { error = "کد ۶ رقمی رو کامل وارد کن"; return }
+        authRun {
+            repo.verifyResetCode(resetEmail, code)
+            authMode = AuthMode.NewPass
+        }
+    }
+
+    fun setNewPassword(password: String, repeat: String) {
+        if (password.length < 8) { error = "رمز عبور حداقل ۸ کاراکتر باشه"; return }
+        if (password != repeat) { error = "دو رمز یکی نیستن"; return }
+        authRun {
+            repo.changePassword(password)
+            authMode = AuthMode.Updated
+        }
+    }
+
+    /** After the reset flow: the account is already signed in, so just open the app. */
+    fun finishReset() {
+        authMode = AuthMode.SignIn
+        authRun {
+            signedIn = store.signedIn
+            load()
+            loadArticles()
+        }
+    }
+
+    fun changePassword(password: String, repeat: String) {
+        if (password.length < 8) { error = "رمز عبور حداقل ۸ کاراکتر باشه"; return }
+        if (password != repeat) { error = "دو رمز یکی نیستن"; return }
+        authRun {
+            repo.changePassword(password)
+            pop()
+            toast("رمز عبور عوض شد")
+        }
+    }
+
+    fun loadArticles() {
+        viewModelScope.launch {
+            if (articles.isEmpty()) {
+                store.articlesJson?.let { raw ->
+                    runCatching { Api.json.decodeFromString(ListSerializer(Article.serializer()), raw) }.getOrNull()?.let { articles = it }
+                }
+            }
+            runCatching { repo.articles() }.getOrNull()?.takeIf { it.isNotEmpty() }?.let {
+                articles = it
+                store.articlesJson = Api.json.encodeToString(ListSerializer(Article.serializer()), it)
+            }
+        }
+    }
+
+    fun sendTicket(subject: String, message: String, onDone: () -> Unit) {
+        if (subject.isBlank() || message.isBlank()) { error = "موضوع و پیام رو بنویس"; return }
+        authRun {
+            repo.sendTicket(subject.trim(), message.trim())
+            toast("پیامت ارسال شد")
+            onDone()
+        }
     }
 
     // ------------------------------------------------------------------ profile
@@ -299,6 +446,108 @@ class AppVM(private val app: Application) : AndroidViewModel(app) {
             delay(450)
             flushNow()
         }
+    }
+
+    /** "Edit period" screen: replaces the whole set of bleeding days in one go. */
+    fun applyPeriodDays(newSet: Set<LocalDate>) {
+        val s = snap ?: return
+        if (s.me.role != "her") return
+        val today = LocalDate.now()
+        val add = (newSet - s.logs).filter { !it.isAfter(today) }
+        val rem = s.logs - newSet
+        if (add.isEmpty() && rem.isEmpty()) return
+        snap = s.with(logs = (s.logs + add) - rem)
+        if (add.isNotEmpty()) queue(PendingOp("days", days = add.map { it.toString() }))
+        rem.forEach { queue(PendingOp("day", day = it.toString(), on = false)) }
+        viewModelScope.launch { flushNow() }
+    }
+
+    // ------------------------------------------------------------------ add-log form
+    fun draftFor(day: LocalDate): LogDraft {
+        val s = snap
+        val dl = s?.days?.get(day)
+        val hl = s?.health?.get(day)
+        val flow = Fa.flowOf(dl?.symptoms.orEmpty())?.let { Catalog.normalizeFlow(it) }
+        return LogDraft(
+            day = day, flow = flow,
+            symptoms = Fa.realSymptoms(dl?.symptoms.orEmpty()).toSet(),
+            moods = dl?.moods.orEmpty().toSet(),
+            medicines = hl?.medicines.orEmpty().toSet(),
+            note = hl?.note.orEmpty(),
+            weight = hl?.weightKg, temp = hl?.temperatureC, water = hl?.waterMl,
+            energy = dl?.energy,
+            legacyMood = if (dl?.moods.isNullOrEmpty()) dl?.mood else null,
+        )
+    }
+
+    fun openLog(day: LocalDate) {
+        if (snap?.me?.role != "her") return
+        draft = draftFor(day)
+        push(Screen.AddLog)
+    }
+
+    fun updateDraft(f: (LogDraft) -> LogDraft) { draft = draft?.let(f) }
+
+    fun saveDraft(): Boolean {
+        val s = snap ?: return false
+        val d = draft ?: return false
+        if (s.me.role != "her") return false
+        val day = d.day
+        val moods = d.moods.toList()
+        val dl = DayLog(s.me.id, day.toString(), Catalog.valenceOf(moods) ?: d.legacyMood, d.energy, listOfNotNull(d.flow) + d.symptoms.toList(), moods)
+        val hl = HealthLog(s.me.id, day.toString(), d.medicines.toList(), d.note.trim().ifBlank { null }, d.weight, d.temp, d.water)
+        var ns = s.with(days = s.days + (day to dl), health = s.health + (day to hl))
+        if (d.flow != null && day !in s.logs && !day.isAfter(LocalDate.now())) {
+            ns = ns.with(logs = ns.logs + day)
+            queue(PendingOp("day", day = day.toString(), on = true))
+        }
+        if (d.weight != null) {
+            val nb = (s.body ?: Body(s.me.id)).copy(weightKg = d.weight)
+            ns = ns.with(body = nb)
+            queue(PendingOp("body", payload = Api.json.encodeToString(Body.serializer(), nb)))
+        }
+        snap = ns
+        queue(PendingOp("daylog", day = day.toString(), payload = Api.json.encodeToString(DayLog.serializer(), dl)))
+        queue(PendingOp("health", day = day.toString(), payload = Api.json.encodeToString(HealthLog.serializer(), hl)))
+        viewModelScope.launch { flushNow() }
+        draft = null
+        return true
+    }
+
+    // ------------------------------------------------------------------ private body profile
+    fun saveBody(transform: (Body) -> Body) {
+        val s = snap ?: return
+        val nb = transform(s.body ?: Body(s.me.id))
+        snap = s.with(body = nb)
+        queue(PendingOp("body", payload = Api.json.encodeToString(Body.serializer(), nb)))
+        viewModelScope.launch { flushNow() }
+    }
+
+    /** End of the 7-step setup: private body data + cycle settings + last period. */
+    fun finishSetup(birth: LocalDate?, weight: Double?, height: Double?, cycle: Int, period: Int, lastStart: LocalDate) {
+        saveBody { it.copy(birthDate = birth?.toString(), weightKg = weight, heightCm = height) }
+        saveSetup(lastStart, emptyList(), cycle, period, 5, 0, false)
+    }
+
+    /** Everything she logged, as JSON text, for "Download my data". */
+    fun exportJson(): String {
+        val s = snap ?: return "{}"
+        val o = buildJsonObject {
+            put("exported_at", java.time.Instant.now().toString())
+            put("name", s.me.name ?: "")
+            put("email", s.me.email ?: "")
+            put("cycle_length", s.me.cycleLength)
+            put("period_length", s.me.periodLength)
+            s.body?.let { b ->
+                put("birth_date", b.birthDate ?: "")
+                b.heightCm?.let { put("height_cm", it) }
+                b.weightKg?.let { put("weight_kg", it) }
+            }
+            put("period_days", buildJsonArray { s.logs.sorted().forEach { add(it.toString()) } })
+            put("daily_logs", kotlinx.serialization.json.Json.parseToJsonElement(Api.json.encodeToString(ListSerializer(DayLog.serializer()), s.days.values.sortedBy { it.day })))
+            put("health_logs", kotlinx.serialization.json.Json.parseToJsonElement(Api.json.encodeToString(ListSerializer(HealthLog.serializer()), s.health.values.sortedBy { it.day })))
+        }
+        return kotlinx.serialization.json.Json { prettyPrint = true }.encodeToString(kotlinx.serialization.json.JsonObject.serializer(), o)
     }
 
     // ------------------------------------------------------------------ quick messages
