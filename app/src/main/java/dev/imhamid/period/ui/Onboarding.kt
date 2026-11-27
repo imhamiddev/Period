@@ -1,5 +1,6 @@
 package dev.imhamid.period.ui
 
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.RepeatMode
