@@ -42,15 +42,28 @@ object Notifier {
             ctx, 0, Intent(ctx, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
-        val n = NotificationCompat.Builder(ctx, channel)
+        val hide = SessionStore(ctx).prefs()["notif_private"] == "true"
+        val b = NotificationCompat.Builder(ctx, channel)
             .setSmallIcon(R.drawable.ic_notif)
             .setContentTitle(title)
             .setContentText(text)
             .setStyle(NotificationCompat.BigTextStyle().bigText(text))
-            .setColor(0xFFFF6B9D.toInt())
+            .setColor(0xFFE8457C.toInt())
             .setAutoCancel(true)
             .setContentIntent(pi)
-            .build()
+        if (hide) {
+            // On a locked screen only a generic notification is shown.
+            b.setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
+            b.setPublicVersion(
+                NotificationCompat.Builder(ctx, channel)
+                    .setSmallIcon(R.drawable.ic_notif)
+                    .setContentTitle("لونا")
+                    .setContentText("یک اعلان جدید")
+                    .setColor(0xFFE8457C.toInt())
+                    .build(),
+            )
+        }
+        val n = b.build()
         runCatching { NotificationManagerCompat.from(ctx).notify(id, n) }
     }
 

@@ -117,7 +117,41 @@ private fun LogCountTab(vm: AppVM, s: Snapshot) {
 
     CountPanel("علائم", symCounts.map { Triple(Catalog.symptom(it.key)?.icon ?: Icons.Rounded.Circle, Catalog.symptom(it.key)?.label ?: Fa.symptomName(it.key), it.value) }, C.PinkSoft)
     CountPanel("حال‌وهوا", moodCounts.map { Triple(Catalog.mood(it.key)?.icon ?: Icons.Rounded.Circle, Catalog.mood(it.key)?.label ?: it.key, it.value) }, C.AmberSoft)
+    PatternPanel(s)
     if (isHer) CountPanel("پیشگیری و دارو", medCounts.map { Triple(Catalog.medicine(it.key)?.icon ?: Icons.Rounded.Circle, Catalog.medicine(it.key)?.label ?: it.key, it.value) }, C.SurfaceAlt)
+}
+
+@Composable
+private fun PatternPanel(s: Snapshot) {
+    val today = rememberToday()
+    val rows = remember(s.days, s.logs, today) { Insights.patterns(s, today) }
+    Panel {
+        Txt("الگوی علائم در چرخه", 18.sp, FontWeight.Bold)
+        Txt("هر علامت یا حال‌وهوا بیشتر تو کدوم فاز پیش میاد", 13.sp, color = C.Muted, modifier = Modifier.padding(top = 2.dp, bottom = 12.dp))
+        if (rows.isEmpty()) {
+            Txt("برای دیدن الگو، چند چرخه علائم و حال‌وهوا ثبت کن.", 14.sp, color = C.Muted)
+            return@Panel
+        }
+        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            rows.forEach { r ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(40.dp).clip(CircleShape).background(C.PinkSoft), contentAlignment = Alignment.Center) { Icon(r.icon, null, tint = C.Pink, modifier = Modifier.size(22.dp)) }
+                    Column(Modifier.padding(horizontal = 12.dp).weight(1f)) {
+                        Txt(r.label, 15.sp, FontWeight.Medium)
+                        Txt(r.topPhase?.let { "بیشتر در فاز ${Content.phases[it].short}" } ?: "بین فازها پراکنده‌ست", 12.sp, color = C.Muted)
+                    }
+                    val mx = (r.perPhase.maxOrNull() ?: 1).coerceAtLeast(1)
+                    Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.Bottom, modifier = Modifier.height(38.dp)) {
+                        r.perPhase.forEachIndexed { i, n ->
+                            Box(Modifier.width(13.dp).height((38 * n / mx.toFloat()).coerceAtLeast(3f).dp).clip(RoundedCornerShape(4.dp)).background(Content.phases[i].color.copy(alpha = if (n == 0) 0.25f else 1f)))
+                        }
+                    }
+                }
+            }
+        }
+        Spacer(Modifier.height(12.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Content.phases.forEach { LegendDot(it.color, it.short) } }
+    }
 }
 
 @Composable
@@ -372,6 +406,7 @@ fun MyCyclesScreen(vm: AppVM) {
                     BigButton("ویرایش پریود", { vm.push(Screen.EditPeriod) })
                 }
             }
+            if (isHer) ReportPanel(vm, s)
             Panel {
                 Txt("تاریخچه", 18.sp, FontWeight.Bold)
                 Spacer(Modifier.height(10.dp))
@@ -415,5 +450,24 @@ private fun CycleHistoryRow(r: CycleRow, filter: Int) {
                 Spacer(Modifier.weight(rest))
             }
         }
+    }
+}
+
+@Composable
+private fun ReportPanel(vm: AppVM, s: Snapshot) {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    var days by remember { mutableIntStateOf(90) }
+    Panel {
+        Txt("گزارش برای پزشک", 18.sp, FontWeight.Bold)
+        Txt("یه PDF یک‌صفحه‌ای از چرخه، علائم، وزن و دمات برای نشون دادن به پزشک.", 13.sp, color = C.Muted, modifier = Modifier.padding(top = 2.dp, bottom = 12.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf(90 to "۳ ماه", 180 to "۶ ماه", 365 to "۱ سال").forEach { (d, l) -> FilterChip(l, days == d) { days = d } }
+        }
+        Spacer(Modifier.height(14.dp))
+        BigButton("ساخت و اشتراک PDF", {
+            runCatching { Report.build(ctx, s, days) }
+                .onSuccess { Report.share(ctx, it) }
+                .onFailure { vm.toast("ساخت گزارش ناموفق بود") }
+        })
     }
 }
