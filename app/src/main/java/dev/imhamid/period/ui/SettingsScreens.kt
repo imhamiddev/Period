@@ -346,6 +346,11 @@ fun NotificationsScreen(vm: AppVM) {
                 }
             }
         }
+        Panel(padding = 0.dp) {
+            Column(Modifier.padding(horizontal = 16.dp)) {
+                ToggleRow("پنهان کردن جزئیات روی صفحه‌ی قفل", vm.prefBool("notif_private", false), { vm.setPref("notif_private", it.toString()) }, "روی صفحه‌ی قفل فقط «لونا · یک اعلان جدید» نشون داده می‌شه")
+            }
+        }
         if (!isHer) Txt("حال‌وهوایی که ثبت می‌شه هم با همین کلید اصلی برات اعلان می‌شه.", 12.sp, color = C.Muted)
     }
 }

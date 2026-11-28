@@ -100,6 +100,7 @@ fun AccountTab(vm: AppVM) {
             Column(Modifier.padding(horizontal = 16.dp)) {
                 SettingRow("تنظیمات و یکاها", { vm.push(Screen.Preferences) }, icon = Icons.Rounded.Settings)
                 if (isHer) { RowDivider(); SettingRow("تنظیمات چرخه", { vm.push(Screen.CycleSettings) }, icon = Icons.Rounded.WaterDrop) }
+                if (isHer) { RowDivider(); SettingRow("گزارش برای پزشک (PDF)", { vm.push(Screen.MyCycles) }, icon = Icons.Rounded.Description) }
                 RowDivider()
                 SettingRow("یادآور روزانه", { vm.push(Screen.Reminder) }, icon = Icons.Rounded.Alarm)
                 RowDivider()

@@ -71,6 +71,7 @@ fun CalendarTab(vm: AppVM) {
     var monthStart by remember { mutableStateOf(Fa.jalaliMonth(today).first) }
     var selected by remember { mutableStateOf(today) }
     var menu by remember { mutableStateOf(false) }
+    val bbtDay = remember(s.health, today) { Insights.bbtOvulation(s, today) }
     val (first, len) = remember(monthStart) { Fa.jalaliMonth(monthStart) }
     val lead = weekIndex(first)
     val rows = (lead + len + 6) / 7
@@ -114,7 +115,7 @@ fun CalendarTab(vm: AppVM) {
                         val idx = r * 7 + c - lead
                         if (idx in 0 until len) {
                             val d = first.plusDays(idx.toLong())
-                            DayCell(d, today, selected, engine, Modifier.weight(1f)) { selected = d }
+                            DayCell(d, today, selected, engine, d == bbtDay, Modifier.weight(1f)) { selected = d }
                         } else Spacer(Modifier.weight(1f))
                     }
                 }
@@ -165,14 +166,14 @@ fun CalendarTab(vm: AppVM) {
 }
 
 @Composable
-private fun DayCell(d: LocalDate, today: LocalDate, selected: LocalDate, engine: CycleEngine?, modifier: Modifier, onTap: () -> Unit) {
+private fun DayCell(d: LocalDate, today: LocalDate, selected: LocalDate, engine: CycleEngine?, bbtOvulation: Boolean, modifier: Modifier, onTap: () -> Unit) {
     val phase = engine?.phaseOn(d)
     val logged = engine?.isLogged(d) == true
     val predicted = !logged && engine?.isPredictedPeriod(d) == true
     val (color, kind) = when {
         logged -> C.Period to FaceKind.Sad
         predicted -> C.Period.copy(alpha = 0.55f) to FaceKind.Sad
-        phase == Phase.OVULATION -> OvulationBlue to FaceKind.Calm
+        phase == Phase.OVULATION || bbtOvulation -> OvulationBlue to FaceKind.Calm
         phase == Phase.FERTILE -> FertileGreen to FaceKind.Smile
         else -> C.Track to FaceKind.Neutral
     }

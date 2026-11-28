@@ -26,6 +26,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.DirectionsRun
+import androidx.compose.material.icons.rounded.Favorite
+import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.QuestionAnswer
+import androidx.compose.material.icons.rounded.Thermostat
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.WaterDrop
 import androidx.compose.material3.DropdownMenu
@@ -121,6 +126,66 @@ fun HomeTab(vm: AppVM) {
                         Column(Modifier.weight(1f)) {
                             Txt("${Fa.n(unread.size)} پیام جدید", 16.sp, FontWeight.Bold)
                             Txt(unread.first().body, 14.sp, color = C.Muted, maxLines = 1)
+                        }
+                    }
+                }
+            }
+
+            // ---- soft health hint (only for her)
+            if (isHer) {
+                val dismissed = vm.pref("insight_off", "").split("|")
+                val flag = remember(s.logs, today) { Insights.flags(s, today) }.firstOrNull { it.id !in dismissed }
+                if (flag != null) {
+                    Panel {
+                        Row(verticalAlignment = Alignment.Top) {
+                            Box(Modifier.size(40.dp).clip(CircleShape).background(C.AmberSoft), contentAlignment = Alignment.Center) { Icon(Icons.Rounded.Info, null, tint = C.Orange) }
+                            Spacer(Modifier.width(12.dp))
+                            Column(Modifier.weight(1f)) {
+                                Txt(flag.title, 16.sp, FontWeight.Bold)
+                                Txt(flag.text, 14.sp, color = C.Muted, lineHeight = 22.sp, modifier = Modifier.padding(top = 4.dp))
+                                Txt("باشه، دیدم", 14.sp, FontWeight.Bold, C.Pink, Modifier.padding(top = 10.dp).pressable { vm.setPref("insight_off", (dismissed + flag.id).filter { it.isNotBlank() }.takeLast(30).joinToString("|")) })
+                            }
+                        }
+                    }
+                }
+                val bbt = remember(s.health, today) { Insights.bbtOvulation(s, today) }
+                if (bbt != null) {
+                    Panel {
+                        Row(verticalAlignment = Alignment.Top) {
+                            Box(Modifier.size(40.dp).clip(CircleShape).background(C.PinkSoft), contentAlignment = Alignment.Center) { Icon(Icons.Rounded.Thermostat, null, tint = C.Pink) }
+                            Spacer(Modifier.width(12.dp))
+                            Column(Modifier.weight(1f)) {
+                                Txt("تأیید تخمک‌گذاری با دما", 16.sp, FontWeight.Bold)
+                                Txt("طبق دمای صبحگاهی‌ت، تخمک‌گذاری حدود ${Fa.date(bbt, "d MMMM")} اتفاق افتاده.", 14.sp, color = C.Muted, lineHeight = 22.sp, modifier = Modifier.padding(top = 4.dp))
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ---- partner: one-tap reactions
+            if (!isHer && s.activePair != null && owner != null) {
+                val todayLog = s.days[today]
+                val moodText = todayLog?.moods.orEmpty().mapNotNull { Catalog.mood(it)?.label }.joinToString("، ")
+                    .ifBlank { todayLog?.mood?.let { Fa.moodNames[it - 1] }.orEmpty() }
+                var sentLabel by remember { mutableStateOf<String?>(null) }
+                androidx.compose.runtime.LaunchedEffect(sentLabel) { if (sentLabel != null) { kotlinx.coroutines.delay(2500); sentLabel = null } }
+                Panel {
+                    Txt("واکنش سریع", 14.sp, color = C.Muted)
+                    Txt(if (moodText.isNotBlank()) "حال امروز $name: $moodText" else "با یه لمس به $name بگو کنارشی", 15.sp, FontWeight.Medium, modifier = Modifier.padding(top = 4.dp, bottom = 14.dp))
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        listOf(
+                            Triple(Icons.Rounded.Favorite, "دوستت دارم", "دوستت دارم"),
+                            Triple(Icons.Rounded.Check, "فهمیدم", "فهمیدم، کنارتم"),
+                            Triple(Icons.Rounded.DirectionsRun, "دارم میام", "دارم میام پیشت"),
+                            Triple(Icons.Rounded.QuestionAnswer, "چیزی لازمه؟", "چیزی لازم داری؟"),
+                        ).forEach { (ic, label, msg) ->
+                            Column(Modifier.width(76.dp).pressable { vm.sendMessage(msg); sentLabel = label }, horizontalAlignment = Alignment.CenterHorizontally) {
+                                Box(Modifier.size(54.dp).clip(CircleShape).background(if (sentLabel == label) C.Pink else C.PinkSoft), contentAlignment = Alignment.Center) {
+                                    Icon(if (sentLabel == label) Icons.Rounded.Check else ic, null, tint = if (sentLabel == label) Color.White else C.Pink)
+                                }
+                                Txt(label, 12.sp, color = C.Muted, align = TextAlign.Center, modifier = Modifier.padding(top = 6.dp))
+                            }
                         }
                     }
                 }
