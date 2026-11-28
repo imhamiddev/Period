@@ -105,7 +105,7 @@ object Report {
 
         // ---------------- patient row
         var yb = H - 130
-        card(L, yb - 34, RE - L, 40, BG, BG)
+        card(L, yb - 34, RE - L, 40f, BG, BG)
         val items = listOf(
             "سن" to (age?.let { "${Fa.n(it)} سال" } ?: "—"),
             "قد" to (body?.heightCm?.let { "${Fa.digits(fmt1(it))} سانتی‌متر" } ?: "—"),
@@ -130,7 +130,7 @@ object Report {
         val cw = (RE - L - gap * 3) / 4
         stats.forEachIndexed { i, (k, v, col) ->
             val x = RE - (i + 1) * cw - i * gap
-            card(x, yb - 56, cw, 62)
+            card(x, yb - 56, cw, 62f)
             rrect(x + cw - 5, yb - 56 + 10, 3f, 42f, 1.5f, fill(col))
             text(k, x + cw - 14, yb - 16, paint(reg, 8.5f, MUTED)); text(v, x + cw - 14, yb - 40, paint(bold, 15f, INK))
         }
@@ -170,7 +170,7 @@ object Report {
         yb = H - 436
         val half = (RE - L - 14) / 2
         fun bars(x0: Float, title: String, data: List<Pair<String, Int>>, col: Int) {
-            card(x0, yb - 146, half, 152)
+            card(x0, yb - 146, half, 152f)
             text(title, x0 + half - 14, yb - 18, paint(bold, 11.5f, INK))
             if (data.isEmpty()) { text("در این بازه چیزی ثبت نشده.", x0 + half - 14, yb - 44, paint(reg, 9.5f, MUTED)); return }
             val mx = data.maxOf { it.second }
@@ -213,10 +213,10 @@ object Report {
 
         // ---------------- contraception + notes
         yb = H - 744
-        card(RE - half, yb - 52, half, 58)
+        card(RE - half, yb - 52, half, 58f)
         text("پیشگیری و دارو", RE - 14, yb - 18, paint(bold, 11f, INK))
         text(meds.take(4).joinToString("، ") { "${Catalog.medicine(it.key)?.label ?: it.key} ${Fa.n(it.value)} بار" }.ifBlank { "در این بازه چیزی ثبت نشده." }, RE - 14, yb - 38, paint(reg, 9.5f, MUTED))
-        card(L, yb - 52, half, 58, SOFT, SOFT)
+        card(L, yb - 52, half, 58f, SOFT, SOFT)
         text("نکات قابل توجه", L + half - 14, yb - 18, paint(bold, 11f, PINK))
         text(flags.firstOrNull()?.let { "${it.title}: ${it.text.substringBefore(". ").trim()}" }?.take(70) ?: "چرخه‌ها منظم‌ان؛ مورد هشداری ثبت نشده.", L + half - 14, yb - 38, paint(reg, 9.5f, INK))
         if (flags.size > 1) text("و ${Fa.n(flags.size - 1)} مورد دیگه", L + half - 14, yb - 50, paint(reg, 8.5f, MUTED))
