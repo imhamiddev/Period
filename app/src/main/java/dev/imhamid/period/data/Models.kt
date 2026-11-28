@@ -88,17 +88,6 @@ data class DayLog(
 )
 
 @Serializable
-data class Article(
-    val id: String,
-    val category: String,
-    val title: String,
-    val summary: String = "",
-    val body: String,
-    val icon: String = "drop",
-    val sort: Int = 0,
-)
-
-@Serializable
 data class Message(
     val id: String,
     @SerialName("from_id") val fromId: String,

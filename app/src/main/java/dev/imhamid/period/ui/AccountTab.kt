@@ -63,7 +63,6 @@ fun AccountTab(vm: AppVM) {
     val isHer = me.role == "her"
     val ctx = LocalContext.current
     var confirmLogout by remember { mutableStateOf(false) }
-    val premium = vm.prefBool("premium", false)
 
     if (confirmLogout) {
         ConfirmDialog(
@@ -77,21 +76,6 @@ fun AccountTab(vm: AppVM) {
 
     Column(Modifier.fillMaxSize().background(C.Paper).statusBarsPadding().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Box(Modifier.fillMaxWidth().height(60.dp)) { Txt("حساب", 22.sp, FontWeight.Bold, modifier = Modifier.align(Alignment.Center)) }
-
-        // ---- upgrade banner
-        Row(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(C.Pink).pressable { vm.push(if (premium) Screen.Billing else Screen.Upgrade) }.padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Box(Modifier.size(52.dp).clip(CircleShape).background(Color.White), contentAlignment = Alignment.Center) {
-                Icon(Icons.Rounded.WorkspacePremium, null, tint = C.Orange, modifier = Modifier.size(30.dp))
-            }
-            Spacer(Modifier.width(14.dp))
-            Column(Modifier.weight(1f)) {
-                Txt(if (premium) "پلن ویژه فعاله" else "همین حالا ارتقا بده!", 17.sp, FontWeight.Bold, Color.White)
-                Txt(if (premium) "مدیریت اشتراک" else "از همه‌ی امکانات لونا لذت ببر", 13.sp, color = Color.White.copy(alpha = 0.9f))
-            }
-        }
 
         // ---- profile
         Panel(Modifier.pressable { vm.push(Screen.PersonalInfo) }) {
@@ -125,21 +109,7 @@ fun AccountTab(vm: AppVM) {
                 RowDivider()
                 SettingRow("حساب و امنیت", { vm.push(Screen.Security) }, icon = Icons.Rounded.Shield)
                 RowDivider()
-                SettingRow("روش‌های پرداخت", { vm.push(Screen.PaymentMethods) }, icon = Icons.Rounded.CreditCard)
-                RowDivider()
-                SettingRow("صورت‌حساب و اشتراک", { vm.push(Screen.Billing) }, icon = Icons.Rounded.ConfirmationNumber)
-                RowDivider()
-                SettingRow("حساب‌های متصل", { vm.push(Screen.Linked) }, icon = Icons.Rounded.SwapVert)
-                RowDivider()
-                SettingRow("داده و تحلیل", { vm.push(Screen.DataAnalytics) }, icon = Icons.Rounded.Insights)
-                RowDivider()
-                SettingRow("ظاهر برنامه", { vm.push(Screen.Appearance) }, icon = Icons.Rounded.Palette)
-                RowDivider()
                 SettingRow("راهنما و پشتیبانی", { vm.push(Screen.Help) }, icon = Icons.Rounded.Description)
-                RowDivider()
-                SettingRow("به ما امتیاز بده", {
-                    runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/imhamiddev/Period"))) }
-                }, icon = Icons.Rounded.Star)
                 RowDivider()
                 SettingRow("خروج از حساب", { confirmLogout = true }, icon = Icons.AutoMirrored.Rounded.Logout, danger = true, chevron = false)
             }

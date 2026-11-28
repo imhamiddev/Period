@@ -195,28 +195,27 @@ fun RowDivider() {
     Box(Modifier.fillMaxWidth().height(1.dp).background(C.Line))
 }
 
-/** Round badge with an emoji, optionally with a selected ring and a count below. */
+/** Round badge with an icon, optionally with a selected state and a count below. */
 @Composable
 fun CircleOpt(
-    emoji: String,
+    icon: ImageVector,
     label: String,
     selected: Boolean,
     onClick: (() -> Unit)?,
     modifier: Modifier = Modifier,
     count: Int? = null,
     size: Dp = 62.dp,
-    bg: Color = C.SurfaceAlt,
+    bg: Color = C.PinkSoft,
     selectedColor: Color = C.Pink,
 ) {
-    val ring by animateColorAsState(if (selected) selectedColor else Color.Transparent, tween(180), label = "ring")
+    val fill by animateColorAsState(if (selected) selectedColor else bg, tween(180), label = "fill")
     Column(
         modifier.then(if (onClick != null) Modifier.pressable(role = androidx.compose.ui.semantics.Role.Checkbox) { onClick() } else Modifier),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Box(
-            Modifier.size(size).clip(CircleShape).background(if (selected) selectedColor.copy(alpha = 0.14f) else bg).border(2.dp, ring, CircleShape),
-            contentAlignment = Alignment.Center,
-        ) { Txt(emoji, (size.value * 0.46f).sp, lineHeight = (size.value * 0.6f).sp) }
+        Box(Modifier.size(size).clip(CircleShape).background(fill), contentAlignment = Alignment.Center) {
+            Icon(icon, null, tint = if (selected) Color.White else selectedColor, modifier = Modifier.size(size * 0.48f))
+        }
         if (count != null) Txt("${Fa.n(count)}×", 16.sp, FontWeight.Bold, modifier = Modifier.padding(top = 6.dp))
         Txt(label, 11.sp, color = if (selected) selectedColor else C.Muted, align = TextAlign.Center, modifier = Modifier.padding(top = 4.dp), maxLines = 2, lineHeight = 15.sp)
     }

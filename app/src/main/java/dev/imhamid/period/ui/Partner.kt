@@ -170,7 +170,7 @@ internal fun MessagesCard(vm: AppVM) {
             Txt(if (isHer) "به پارتنرت خبر بده" else "یه پیام مهربون بفرست", 14.sp, color = C.Muted)
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(if (isHer) Fa.herQuick else Fa.partnerQuick) { txt ->
-                    Chip(if (sent == txt) "ارسال شد ✓" else txt, sent == txt, {
+                    Chip(if (sent == txt) "ارسال شد" else txt, sent == txt, {
                         if (sent == null) { sent = txt; vm.sendMessage(txt, target) }
                     })
                 }
@@ -187,7 +187,7 @@ internal fun MessagesCard(vm: AppVM) {
                 }
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(vm.savedMessages) { txt ->
-                        Chip(if (editSaved) "✕  $txt" else if (sent == txt) "ارسال شد ✓" else txt, sent == txt, {
+                        Chip(if (editSaved) "  $txt" else if (sent == txt) "ارسال شد" else txt, sent == txt, {
                             if (editSaved) vm.deleteSavedMessage(txt)
                             else if (sent == null) { sent = txt; vm.sendMessage(txt, target) }
                         })

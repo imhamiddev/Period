@@ -171,7 +171,7 @@ fun PersonalInfoScreen(vm: AppVM) {
                 Field(height, { height = it.filter { c -> c.isDigit() || c == '.' }.take(5) }, "قد (سانتی‌متر)", Modifier.weight(1f), keyboardType = KeyboardType.Decimal, ltr = true)
                 Field(weight, { weight = it.filter { c -> c.isDigit() || c == '.' }.take(5) }, "وزن (کیلوگرم)", Modifier.weight(1f), keyboardType = KeyboardType.Decimal, ltr = true)
             }
-            Txt("این اطلاعات خصوصیه و فقط برای خودت دیده می‌شه.", 12.sp, color = C.Muted)
+            Txt("قد و وزن برای پارتنر متصل‌ت هم دیده می‌شه؛ تاریخ تولد و شماره تلفن فقط برای خودته.", 12.sp, color = C.Muted)
         }
         BigButton("ذخیره", {
             if (name.isBlank()) { vm.toast("اسمت رو بنویس"); return@BigButton }
@@ -230,8 +230,6 @@ fun PreferencesScreen(vm: AppVM) {
             Column(Modifier.padding(horizontal = 16.dp)) {
                 SettingRow("پاک کردن حافظه‌ی موقت", {
                     ctx.cacheDir.deleteRecursively()
-                    vm.store.articlesJson = null
-                    vm.loadArticles()
                     cacheMb = cacheSizeMb(ctx)
                     vm.toast("حافظه‌ی موقت پاک شد")
                 }, value = "${Fa.digits(String.format(java.util.Locale.US, "%.1f", cacheMb))} مگابایت")
@@ -356,16 +354,6 @@ fun NotificationsScreen(vm: AppVM) {
 @Composable
 fun SecurityScreen(vm: AppVM) {
     val ctx = LocalContext.current
-    var confirmAll by remember { mutableStateOf(false) }
-    if (confirmAll) {
-        ConfirmDialog(
-            title = "خروج از همه‌ی دستگاه‌ها؟",
-            text = "حساب‌ت روی همه‌ی گوشی‌ها (از جمله همین گوشی) خارج می‌شه.",
-            confirm = "خروج",
-            onConfirm = { confirmAll = false; vm.logoutEverywhere() },
-            onDismiss = { confirmAll = false },
-        )
-    }
     SettingsPage(vm, "حساب و امنیت") {
         Panel(padding = 0.dp) {
             Column(Modifier.padding(horizontal = 16.dp)) {
@@ -375,13 +363,7 @@ fun SecurityScreen(vm: AppVM) {
                     else Biometrics.prompt(act, if (v) "فعال‌سازی قفل" else "غیرفعال‌سازی قفل", { vm.setLock(v) })
                 }, "با قفل فعال، محتوا از اسکرین‌شات و Recents پنهان می‌شه")
                 RowDivider()
-                SettingRow("ورود دومرحله‌ای پیامکی", null, value = "به‌زودی", sub = "نیاز به سرویس پیامک دارد")
-                RowDivider()
-                SettingRow("Google Authenticator", null, value = "به‌زودی")
-                RowDivider()
                 SettingRow("تغییر رمز عبور", { vm.push(Screen.ChangePassword) })
-                RowDivider()
-                SettingRow("مدیریت دستگاه‌ها", { confirmAll = true }, sub = "خروج از حساب روی همه‌ی دستگاه‌ها")
             }
         }
     }
@@ -400,128 +382,11 @@ fun ChangePasswordScreen(vm: AppVM) {
 
 // ============================================================================ linked accounts
 @Composable
-fun LinkedScreen(vm: AppVM) {
-    SettingsPage(vm, "حساب‌های متصل") {
-        Panel(padding = 0.dp) {
-            Column(Modifier.padding(horizontal = 16.dp)) {
-                SettingRow("Google", null, value = "به‌زودی")
-                RowDivider()
-                SettingRow("Apple", null, value = "به‌زودی")
-                RowDivider()
-                SettingRow("Facebook", null, value = "به‌زودی")
-            }
-        }
-        Txt("ورود با حساب‌های دیگه نیاز به راه‌اندازی در Supabase داره و فعلاً فعال نیست.", 12.sp, color = C.Muted)
-    }
-}
-
-// ============================================================================ data & analytics
-@Composable
-fun DataScreen(vm: AppVM) {
-    val ctx = LocalContext.current
-    var info by remember { mutableStateOf<String?>(null) }
-    info?.let { txt ->
-        AlertDialog(
-            onDismissRequest = { info = null },
-            containerColor = C.Surface,
-            text = { Txt(txt, 15.sp, lineHeight = 24.sp) },
-            confirmButton = { TextButton(onClick = { info = null }) { Txt("باشه", 16.sp, FontWeight.Bold, C.Pink) } },
-        )
-    }
-    SettingsPage(vm, "داده و تحلیل") {
-        Panel(padding = 0.dp) {
-            Column(Modifier.padding(horizontal = 16.dp)) {
-                SettingRow("نحوه‌ی استفاده از داده", { info = "فقط چیزهایی ذخیره می‌شه که خودت ثبت می‌کنی. هیچ ابزار تحلیل یا ردیابی تبلیغاتی داخل لونا نیست." }, sub = "چه چیزی ذخیره می‌شه و چرا")
-                RowDivider()
-                SettingRow("تبلیغات", { info = "لونا هیچ تبلیغی نداره و اطلاعات تو رو برای تبلیغات استفاده یا فروش نمی‌کنه." }, sub = "لونا تبلیغ ندارد")
-                RowDivider()
-                SettingRow("دانلود داده‌هام", {
-                    val json = vm.exportJson()
-                    val i = Intent(Intent.ACTION_SEND).apply {
-                        type = "text/plain"
-                        putExtra(Intent.EXTRA_SUBJECT, "داده‌های لونا")
-                        putExtra(Intent.EXTRA_TEXT, json)
-                    }
-                    ctx.startActivity(Intent.createChooser(i, "ذخیره یا ارسال داده‌ها"))
-                }, sub = "یک نسخه‌ی کامل از همه‌ی داده‌هات (JSON)")
-            }
-        }
-    }
-}
-
-// ============================================================================ appearance
-@Composable
-fun AppearanceScreen(vm: AppVM) {
-    SettingsPage(vm, "ظاهر برنامه") {
-        Panel(padding = 0.dp) {
-            Column(Modifier.padding(horizontal = 16.dp)) {
-                SettingRow("تم", { vm.push(Screen.ThemeScreen) }, value = listOf("مثل سیستم", "روشن", "تیره")[vm.themeMode.coerceIn(0, 2)])
-                RowDivider()
-                SettingRow("زبان", { vm.push(Screen.Language) }, value = "فارسی")
-            }
-        }
-    }
-}
-
-@Composable
-fun ThemeScreen(vm: AppVM) {
-    SettingsPage(vm, "تم") {
-        Panel(padding = 0.dp) {
-            Column(Modifier.padding(horizontal = 16.dp)) {
-                listOf("مثل سیستم", "روشن", "تیره").forEachIndexed { i, t ->
-                    if (i > 0) RowDivider()
-                    Row(Modifier.fillMaxWidth().pressable { vm.setTheme(i) }.padding(vertical = 15.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Txt(t, 16.sp, FontWeight.Medium, modifier = Modifier.weight(1f))
-                        Box(Modifier.size(24.dp).clip(CircleShape).border(2.dp, if (vm.themeMode == i) C.Pink else C.Track, CircleShape), contentAlignment = Alignment.Center) {
-                            if (vm.themeMode == i) Box(Modifier.size(12.dp).clip(CircleShape).background(C.Pink))
-                        }
-                    }
-                }
-            }
-        }
-        Panel {
-            Txt("رنگ برنامه", 16.sp, FontWeight.Medium)
-            Spacer(Modifier.height(12.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Accents.forEachIndexed { i, a ->
-                    Box(
-                        Modifier.size(42.dp).clip(CircleShape).background(a.primary).then(if (vm.accent == i) Modifier.border(3.dp, C.Text, CircleShape) else Modifier).pressable { vm.chooseAccent(i) },
-                        contentAlignment = Alignment.Center,
-                    ) { if (vm.accent == i) Icon(Icons.Rounded.Check, null, tint = Color.White, modifier = Modifier.size(20.dp)) }
-                }
-            }
-            Txt(Accents[vm.accent.coerceIn(0, Accents.lastIndex)].name, 12.sp, color = C.Muted, modifier = Modifier.padding(top = 8.dp))
-        }
-    }
-}
-
-@Composable
-fun LanguageScreen(vm: AppVM) {
-    SettingsPage(vm, "زبان") {
-        Panel(padding = 0.dp) {
-            Column(Modifier.padding(horizontal = 16.dp)) {
-                Row(Modifier.fillMaxWidth().padding(vertical = 15.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Txt("فارسی", 16.sp, FontWeight.Bold, C.Pink, Modifier.weight(1f))
-                    Icon(Icons.Rounded.Check, null, tint = C.Pink)
-                }
-                listOf("English", "العربية", "Türkçe").forEach { l ->
-                    RowDivider()
-                    SettingRow(l, null, value = "به‌زودی")
-                }
-            }
-        }
-    }
-}
-
-// ============================================================================ help & support
-@Composable
 fun HelpScreen(vm: AppVM) {
     SettingsPage(vm, "راهنما و پشتیبانی") {
         Panel(padding = 0.dp) {
             Column(Modifier.padding(horizontal = 16.dp)) {
                 SettingRow("سؤالات متداول", { vm.push(Screen.Faq) })
-                RowDivider()
-                SettingRow("تماس با پشتیبانی", { vm.push(Screen.Contact) })
                 RowDivider()
                 SettingRow("سیاست حریم خصوصی", { vm.push(Screen.Privacy) })
                 RowDivider()
@@ -544,18 +409,6 @@ fun FaqScreen(vm: AppVM) {
                 AnimatedVisibility(open == i) { Txt(f.a, 15.sp, color = C.Muted, lineHeight = 24.sp, modifier = Modifier.padding(top = 8.dp)) }
             }
         }
-    }
-}
-
-@Composable
-fun ContactScreen(vm: AppVM) {
-    var subject by remember { mutableStateOf("") }
-    var msg by remember { mutableStateOf("") }
-    SettingsPage(vm, "تماس با پشتیبانی") {
-        Txt("مشکل یا پیشنهادت رو بنویس؛ پیامت مستقیم برای ما ارسال می‌شه.", 14.sp, color = C.Muted)
-        Field(subject, { subject = it.take(120) }, "موضوع")
-        Field(msg, { msg = it.take(2000) }, "پیام", singleLine = false)
-        BigButton("ارسال", { vm.sendTicket(subject, msg) { vm.pop() } }, busy = vm.busy)
     }
 }
 

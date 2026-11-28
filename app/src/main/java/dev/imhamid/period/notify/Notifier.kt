@@ -55,12 +55,12 @@ object Notifier {
     }
 
     private val reminderTexts = listOf(
-        "امروز حالت چطور بود؟ یه لاگ کوچیک ثبت کن 💗" to "چند ثانیه بیشتر وقت نمی‌بره.",
-        "یادت نره امروزت رو ثبت کنی 🌸" to "حال‌وهوا، علائم یا یه یادداشت کوتاه.",
-        "وقت ثبت روزانه‌ست ✨" to "هرچی دقیق‌تر ثبت کنی، پیش‌بینی‌ها بهتر می‌شن.",
-        "سلام! امروز چه خبر از بدنت؟ 🌷" to "یه نگاه به حال‌وهوات بنداز و ثبتش کن.",
-        "یه لحظه برای خودت 🫶" to "لاگ امروزت رو بنویس تا چرخه‌ات رو بهتر بشناسی.",
-        "امروز آب خوردی؟ 💧" to "آب، حال‌وهوا و علائمت رو ثبت کن.",
+        "امروز حالت چطور بود؟ یه لاگ کوچیک ثبت کن" to "چند ثانیه بیشتر وقت نمی‌بره.",
+        "یادت نره امروزت رو ثبت کنی" to "حال‌وهوا، علائم یا یه یادداشت کوتاه.",
+        "وقت ثبت روزانه‌ست" to "هرچی دقیق‌تر ثبت کنی، پیش‌بینی‌ها بهتر می‌شن.",
+        "سلام! امروز چه خبر از بدنت؟" to "یه نگاه به حال‌وهوات بنداز و ثبتش کن.",
+        "یه لحظه برای خودت" to "لاگ امروزت رو بنویس تا چرخه‌ات رو بهتر بشناسی.",
+        "امروز آب خوردی؟" to "آب، حال‌وهوا و علائمت رو ثبت کن.",
     )
 
     /** Daily "log your day" reminder: at the chosen time, only if nothing was logged today. */
@@ -136,7 +136,7 @@ object Notifier {
                     val key = "mood-$day-$mood-${dl.moods.sorted().joinToString(",")}"
                     if (store.claim(key)) {
                         val text = Fa.moodNotif(mood, herName, partnerTone)
-                        val picked = dl.moods.mapNotNull { dev.imhamid.period.ui.Catalog.mood(it) }.joinToString("  ") { "${it.emoji} ${it.label}" }
+                        val picked = dl.moods.mapNotNull { dev.imhamid.period.ui.Catalog.mood(it) }.joinToString("، ") { it.label }
                         post(ctx, key.hashCode(), text.first, if (picked.isBlank()) text.second else "${text.second}\n$picked")
                     }
                 }

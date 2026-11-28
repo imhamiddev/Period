@@ -327,7 +327,7 @@ fun RoleScreen(vm: AppVM) {
     val name = vm.snap?.me?.name.orEmpty()
     Column(Modifier.fillMaxSize().background(C.Surface).statusBarsPadding().navigationBarsPadding().padding(24.dp)) {
         Spacer(Modifier.height(40.dp))
-        Txt("سلام $name 👋", 32.sp, FontWeight.Bold)
+        Txt("سلام $name", 32.sp, FontWeight.Bold)
         Txt("تو برنامه چه نقشی داری؟", 16.sp, color = C.Muted, modifier = Modifier.padding(top = 6.dp))
         Spacer(Modifier.height(28.dp))
         RoleCard("her", role, "پریودم رو ثبت می‌کنم", "چرخه‌ی خودم رو دنبال می‌کنم و اگه بخوام به پارتنرم خبر می‌دم.", Icons.Rounded.WaterDrop) { role = "her" }

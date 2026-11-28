@@ -1,19 +1,22 @@
 package dev.imhamid.period.ui
 
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.*
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 
 /** Everything the log form offers. Ids are what gets stored in Supabase; never rename an id. */
-class Opt(val id: String, val label: String, val emoji: String)
+class Opt(val id: String, val label: String, val icon: ImageVector)
 
-class Mood(val id: String, val label: String, val emoji: String, val valence: Int)
+class Mood(val id: String, val label: String, val icon: ImageVector, val valence: Int)
 
 object Catalog {
     // Flow ids are stored inside `symptoms` as flow_* (older logs may also contain flow_spot).
     val flows = listOf(
-        Opt("flow_light", "کم", "💧"),
-        Opt("flow_medium", "متوسط", "💧"),
-        Opt("flow_heavy", "زیاد", "💧"),
-        Opt("flow_disaster", "خیلی زیاد", "💧"),
+        Opt("flow_light", "کم", Icons.Rounded.WaterDrop),
+        Opt("flow_medium", "متوسط", Icons.Rounded.WaterDrop),
+        Opt("flow_heavy", "زیاد", Icons.Rounded.WaterDrop),
+        Opt("flow_disaster", "خیلی زیاد", Icons.Rounded.WaterDrop),
     )
 
     /** How many drops each flow level shows. */
@@ -28,54 +31,54 @@ object Catalog {
     fun normalizeFlow(id: String) = if (id == "flow_spot") "flow_light" else id
 
     val symptoms = listOf(
-        Opt("headache", "سردرد", "🤕"),
-        Opt("insomnia", "بی‌خوابی", "😴"),
-        Opt("weight_gain", "افزایش وزن", "⚖️"),
-        Opt("mood_changes", "نوسان خلقی", "🎭"),
-        Opt("irregular", "بی‌نظمی پریود", "📅"),
-        Opt("memory", "مشکل حافظه", "🧠"),
-        Opt("night_sweats", "عرق شبانه", "💦"),
-        Opt("hair_thinning", "ریزش مو", "💇‍♀️"),
-        Opt("tender", "حساسیت سینه", "🎀"),
-        Opt("vaginal_dryness", "خشکی واژن", "🌵"),
-        Opt("hot_flashes", "گُرگرفتگی", "🔥"),
-        Opt("joint_pain", "درد مفاصل", "🦴"),
+        Opt("headache", "سردرد", Icons.Rounded.Psychology),
+        Opt("insomnia", "بی‌خوابی", Icons.Rounded.Bedtime),
+        Opt("weight_gain", "افزایش وزن", Icons.Rounded.MonitorWeight),
+        Opt("mood_changes", "نوسان خلقی", Icons.Rounded.TheaterComedy),
+        Opt("irregular", "بی‌نظمی پریود", Icons.Rounded.EventBusy),
+        Opt("memory", "مشکل حافظه", Icons.Rounded.Lightbulb),
+        Opt("night_sweats", "عرق شبانه", Icons.Rounded.Opacity),
+        Opt("hair_thinning", "ریزش مو", Icons.Rounded.ContentCut),
+        Opt("tender", "حساسیت سینه", Icons.Rounded.Favorite),
+        Opt("vaginal_dryness", "خشکی واژن", Icons.Rounded.Spa),
+        Opt("hot_flashes", "گُرگرفتگی", Icons.Rounded.LocalFireDepartment),
+        Opt("joint_pain", "درد مفاصل", Icons.Rounded.Accessibility),
         // older ids from the first versions (still shown in history and "more")
-        Opt("cramps", "گرفتگی شکم", "😣"),
-        Opt("backpain", "کمردرد", "🧍‍♀️"),
-        Opt("bloating", "نفخ", "🎈"),
-        Opt("acne", "جوش", "🔴"),
-        Opt("fatigue", "خستگی", "🥱"),
-        Opt("nausea", "حالت تهوع", "🤢"),
-        Opt("cravings", "هوس خوراکی", "🍫"),
-        Opt("irritable", "زودرنجی", "😤"),
-        Opt("sad", "غمگینی", "🥺"),
+        Opt("cramps", "گرفتگی شکم", Icons.Rounded.Bolt),
+        Opt("backpain", "کمردرد", Icons.Rounded.AirlineSeatReclineNormal),
+        Opt("bloating", "نفخ", Icons.Rounded.BubbleChart),
+        Opt("acne", "جوش", Icons.Rounded.RadioButtonChecked),
+        Opt("fatigue", "خستگی", Icons.Rounded.BatteryAlert),
+        Opt("nausea", "حالت تهوع", Icons.Rounded.SentimentVeryDissatisfied),
+        Opt("cravings", "هوس خوراکی", Icons.Rounded.Cake),
+        Opt("irritable", "زودرنجی", Icons.Rounded.MoodBad),
+        Opt("sad", "غمگینی", Icons.Rounded.SentimentDissatisfied),
     )
 
     val moods = listOf(
-        Mood("normal", "عادی", "😐", 3),
-        Mood("angry", "عصبانی", "😡", 2),
-        Mood("happy", "شاد", "😊", 4),
-        Mood("sad", "غمگین", "😢", 1),
-        Mood("exhausted", "بی‌حال", "😵", 2),
-        Mood("anxious", "مضطرب", "😰", 2),
-        Mood("depressed", "افسرده", "😔", 1),
-        Mood("in_love", "عاشق", "😍", 5),
-        Mood("bored", "بی‌حوصله", "😒", 3),
-        Mood("confident", "با اعتمادبه‌نفس", "😎", 5),
-        Mood("excited", "هیجان‌زده", "🤩", 5),
-        Mood("relaxed", "آرام", "😌", 4),
+        Mood("normal", "عادی", Icons.Rounded.SentimentNeutral, 3),
+        Mood("angry", "عصبانی", Icons.Rounded.MoodBad, 2),
+        Mood("happy", "شاد", Icons.Rounded.Mood, 4),
+        Mood("sad", "غمگین", Icons.Rounded.SentimentDissatisfied, 1),
+        Mood("exhausted", "بی‌حال", Icons.Rounded.BatteryAlert, 2),
+        Mood("anxious", "مضطرب", Icons.Rounded.Warning, 2),
+        Mood("depressed", "افسرده", Icons.Rounded.Cloud, 1),
+        Mood("in_love", "عاشق", Icons.Rounded.Favorite, 5),
+        Mood("bored", "بی‌حوصله", Icons.Rounded.HourglassEmpty, 3),
+        Mood("confident", "با اعتمادبه‌نفس", Icons.Rounded.EmojiEvents, 5),
+        Mood("excited", "هیجان‌زده", Icons.Rounded.Celebration, 5),
+        Mood("relaxed", "آرام", Icons.Rounded.Spa, 4),
     )
 
     val medicines = listOf(
-        Opt("condom", "کاندوم", "🛡️"),
-        Opt("pill", "قرص", "💊"),
-        Opt("spermicide", "اسپرم‌کش", "🧴"),
-        Opt("ring", "حلقه", "⭕"),
-        Opt("iud", "آی‌یو‌دی", "⚓"),
-        Opt("shot", "آمپول", "💉"),
-        Opt("implant", "ایمپلنت", "📏"),
-        Opt("patch", "پچ", "🩹"),
+        Opt("condom", "کاندوم", Icons.Rounded.Shield),
+        Opt("pill", "قرص", Icons.Rounded.Medication),
+        Opt("spermicide", "اسپرم‌کش", Icons.Rounded.Science),
+        Opt("ring", "حلقه", Icons.Rounded.RadioButtonUnchecked),
+        Opt("iud", "آی‌یو‌دی", Icons.Rounded.Anchor),
+        Opt("shot", "آمپول", Icons.Rounded.Vaccines),
+        Opt("implant", "ایمپلنت", Icons.Rounded.Straighten),
+        Opt("patch", "پچ", Icons.Rounded.Healing),
     )
 
     fun symptom(id: String): Opt? = symptoms.firstOrNull { it.id == id }
@@ -87,6 +90,15 @@ object Catalog {
         val v = ids.mapNotNull { mood(it)?.valence }
         if (v.isEmpty()) return null
         return Math.round(v.average()).toInt().coerceIn(1, 5)
+    }
+
+    /** Icon for the old 1..5 mood score. */
+    fun legacyMoodIcon(score: Int): ImageVector = when (score) {
+        1 -> Icons.Rounded.SentimentVeryDissatisfied
+        2 -> Icons.Rounded.SentimentDissatisfied
+        3 -> Icons.Rounded.SentimentNeutral
+        4 -> Icons.Rounded.Mood
+        else -> Icons.Rounded.Celebration
     }
 
     fun moodWord(score: Int): String = when (score) {

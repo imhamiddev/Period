@@ -18,7 +18,6 @@ import dev.imhamid.period.data.SessionStore
 import dev.imhamid.period.data.DayLog
 import dev.imhamid.period.data.Body
 import dev.imhamid.period.data.HealthLog
-import dev.imhamid.period.data.Article
 import androidx.compose.runtime.mutableStateListOf
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.buildJsonArray
@@ -58,9 +57,7 @@ class AppVM(private val app: Application) : AndroidViewModel(app) {
     var refreshing by mutableStateOf(false)
     var update by mutableStateOf<UpdateState>(UpdateState.None)
     var lockEnabled by mutableStateOf(store.lockEnabled)
-    var themeMode by mutableStateOf(store.themeMode)
     var savedMessages by mutableStateOf(store.savedMessages)
-    var accent by mutableIntStateOf(store.accent)
     var pairLabels by mutableStateOf(store.pairLabels)
 
     // ---- navigation on top of the tabs
@@ -83,7 +80,6 @@ class AppVM(private val app: Application) : AndroidViewModel(app) {
     fun prefBool(k: String, d: Boolean) = (prefs[k] ?: d.toString()) == "true"
     fun setPref(k: String, v: String) { store.setPref(k, v); prefs = prefs + (k to v) }
 
-    var articles by mutableStateOf<List<Article>>(emptyList())
 
     /** True while the server cannot be reached; everything keeps working from the saved copy. */
     var offline by mutableStateOf(false)
@@ -118,7 +114,6 @@ class AppVM(private val app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             if (signedIn) {
                 load()
-                loadArticles()
                 WorkManager.getInstance(app).enqueue(OneTimeWorkRequestBuilder<SyncWorker>().build())
             }
             booting = false
@@ -244,13 +239,6 @@ class AppVM(private val app: Application) : AndroidViewModel(app) {
         authMode = AuthMode.SignIn
     }
 
-    fun logoutEverywhere() {
-        viewModelScope.launch {
-            repo.signOutEverywhere()
-            logout()
-        }
-    }
-
     fun toast(msg: String) { error = msg }
 
     private fun authRun(block: suspend () -> Unit) {
@@ -266,7 +254,6 @@ class AppVM(private val app: Application) : AndroidViewModel(app) {
             repo.signIn(email.trim(), password)
             signedIn = true
             load()
-            loadArticles()
             WorkManager.getInstance(app).enqueue(OneTimeWorkRequestBuilder<SyncWorker>().build())
         }
     }
@@ -282,7 +269,6 @@ class AppVM(private val app: Application) : AndroidViewModel(app) {
             }
             signedIn = true
             load()
-            loadArticles()
             if (name.isNotBlank() && snap?.me?.name.isNullOrBlank()) patch { put("name", name.trim()) }
             WorkManager.getInstance(app).enqueue(OneTimeWorkRequestBuilder<SyncWorker>().build())
         }
@@ -320,7 +306,6 @@ class AppVM(private val app: Application) : AndroidViewModel(app) {
         authRun {
             signedIn = store.signedIn
             load()
-            loadArticles()
         }
     }
 
@@ -331,29 +316,6 @@ class AppVM(private val app: Application) : AndroidViewModel(app) {
             repo.changePassword(password)
             pop()
             toast("رمز عبور عوض شد")
-        }
-    }
-
-    fun loadArticles() {
-        viewModelScope.launch {
-            if (articles.isEmpty()) {
-                store.articlesJson?.let { raw ->
-                    runCatching { Api.json.decodeFromString(ListSerializer(Article.serializer()), raw) }.getOrNull()?.let { articles = it }
-                }
-            }
-            runCatching { repo.articles() }.getOrNull()?.takeIf { it.isNotEmpty() }?.let {
-                articles = it
-                store.articlesJson = Api.json.encodeToString(ListSerializer(Article.serializer()), it)
-            }
-        }
-    }
-
-    fun sendTicket(subject: String, message: String, onDone: () -> Unit) {
-        if (subject.isBlank() || message.isBlank()) { error = "موضوع و پیام رو بنویس"; return }
-        authRun {
-            repo.sendTicket(subject.trim(), message.trim())
-            toast("پیامت ارسال شد")
-            onDone()
         }
     }
 
@@ -529,27 +491,6 @@ class AppVM(private val app: Application) : AndroidViewModel(app) {
         saveSetup(lastStart, emptyList(), cycle, period, 5, 0, false)
     }
 
-    /** Everything she logged, as JSON text, for "Download my data". */
-    fun exportJson(): String {
-        val s = snap ?: return "{}"
-        val o = buildJsonObject {
-            put("exported_at", java.time.Instant.now().toString())
-            put("name", s.me.name ?: "")
-            put("email", s.me.email ?: "")
-            put("cycle_length", s.me.cycleLength)
-            put("period_length", s.me.periodLength)
-            s.body?.let { b ->
-                put("birth_date", b.birthDate ?: "")
-                b.heightCm?.let { put("height_cm", it) }
-                b.weightKg?.let { put("weight_kg", it) }
-            }
-            put("period_days", buildJsonArray { s.logs.sorted().forEach { add(it.toString()) } })
-            put("daily_logs", kotlinx.serialization.json.Json.parseToJsonElement(Api.json.encodeToString(ListSerializer(DayLog.serializer()), s.days.values.sortedBy { it.day })))
-            put("health_logs", kotlinx.serialization.json.Json.parseToJsonElement(Api.json.encodeToString(ListSerializer(HealthLog.serializer()), s.health.values.sortedBy { it.day })))
-        }
-        return kotlinx.serialization.json.Json { prettyPrint = true }.encodeToString(kotlinx.serialization.json.JsonObject.serializer(), o)
-    }
-
     // ------------------------------------------------------------------ quick messages
     /** Her: [pairId] = one person, null = everyone connected. Partner: always to her. */
     fun sendMessage(body: String, pairId: String? = null) {
@@ -588,12 +529,6 @@ class AppVM(private val app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun chooseAccent(i: Int) {
-        store.accent = i
-        accent = i
-        C.accent = i
-    }
-
     fun setFlow(day: LocalDate, flow: String?) {
         val dl = snap?.days?.get(day)
         val rest = dl?.symptoms.orEmpty().filterNot { it.startsWith("flow_") }
@@ -614,11 +549,6 @@ class AppVM(private val app: Application) : AndroidViewModel(app) {
     }
 
     // ------------------------------------------------------------------ appearance / saved messages
-    fun setTheme(mode: Int) {
-        store.themeMode = mode
-        themeMode = mode
-    }
-
     fun saveMessage(text: String) {
         val t = text.trim()
         if (t.isEmpty() || t in savedMessages) return

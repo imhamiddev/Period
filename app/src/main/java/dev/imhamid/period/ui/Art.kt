@@ -159,3 +159,35 @@ fun Uterus(size: Dp, circle: Color, modifier: Modifier = Modifier, glow: Color? 
         }
     }
 }
+
+enum class FaceKind { Smile, Sad, Calm, Neutral }
+
+/** Small round face drawn on a canvas (used by the calendar). */
+@Composable
+fun Face(color: Color, kind: FaceKind, size: Dp = 28.dp, modifier: Modifier = Modifier, ink: Color = Color(0xFF3B2A33)) {
+    Canvas(modifier.size(size)) {
+        val w = this.size.width
+        val c = Offset(w / 2, w / 2)
+        drawCircle(color, w / 2, c)
+        val eyeY = w * 0.40f
+        val dx = w * 0.19f
+        val st = Stroke(w * 0.07f, cap = StrokeCap.Round)
+        when (kind) {
+            FaceKind.Calm -> {
+                // closed eyes (little arcs) and a tiny smile
+                drawArc(ink, 200f, 140f, false, Offset(c.x - dx - w * 0.08f, eyeY - w * 0.06f), Size(w * 0.16f, w * 0.12f), style = st)
+                drawArc(ink, 200f, 140f, false, Offset(c.x + dx - w * 0.08f, eyeY - w * 0.06f), Size(w * 0.16f, w * 0.12f), style = st)
+                drawArc(ink, 20f, 140f, false, Offset(c.x - w * 0.11f, w * 0.52f), Size(w * 0.22f, w * 0.14f), style = st)
+            }
+            else -> {
+                drawCircle(ink, w * 0.05f, Offset(c.x - dx, eyeY))
+                drawCircle(ink, w * 0.05f, Offset(c.x + dx, eyeY))
+                when (kind) {
+                    FaceKind.Smile -> drawArc(ink, 20f, 140f, false, Offset(c.x - w * 0.16f, w * 0.48f), Size(w * 0.32f, w * 0.22f), style = st)
+                    FaceKind.Sad -> drawArc(ink, 200f, 140f, false, Offset(c.x - w * 0.14f, w * 0.58f), Size(w * 0.28f, w * 0.20f), style = st)
+                    else -> drawLine(ink, Offset(c.x - w * 0.12f, w * 0.66f), Offset(c.x + w * 0.12f, w * 0.66f), w * 0.07f, StrokeCap.Round)
+                }
+            }
+        }
+    }
+}
