@@ -24,15 +24,15 @@ Minimal period / PMS tracker for Android. Her logs the cycle; her partner gets g
 `gradle :app:testDebugUnitTest`
 
 
-## Lunari redesign (v2.0.0)
+## Lunari redesign
 
-The whole UI follows the *Lunari – Period Tracker App UI Kit* (pink, rounded cards, bottom bar with Home / Calendar / Tracker / Articles / Account), in Persian with a Jalali calendar.
+Light theme only, one accent colour (magenta), Persian/RTL, Jalali calendar, Material icons (no emoji in the UI).
 
-- Home: cycle dial, phase carousel + phase detail pages, edit-period calendar.
-- Calendar with pregnancy chance, add log (flow, 19 symptoms, 12 moods, contraception, note, weight, temperature, water).
-- Tracker: log counts, my cycles history, weight / BMI / temperature / water charts.
-- Articles (Supabase `articles`), account & settings (personal info, units, reminder, security, data export, theme, help…).
+- Bottom bar: Home / Calendar / Tracker / Account.
+- Home: cycle dial, phase carousel + phase pages, edit-period calendar.
+- Calendar: capsule day cells with face icons, legend, add log (flow, symptoms, moods, contraception, note, weight, temperature, water).
+- Tracker: log counts, my cycles, weight / BMI / temperature / water charts. Her partner sees the Health tab too.
+- Account: personal info, units, cycle settings, reminder, notifications, partner & messages, security (app lock, password), help.
 - Sign up / sign in / password reset by e-mail code, 7-step setup.
-- Subscription and payment screens are **UI only** (no gateway; nothing is charged, only the last 4 digits of a card stay on the phone).
 
-Run `supabase/migrations_006_lunari.sql` **before** installing v2.0.0. Weight, temperature, water, medicines, notes and body data live in `health_logs` / `private_profile`, readable only by their owner.
+Run `supabase/migrations_006_lunari.sql` before installing (it is safe to re-run). Visibility: flow, symptoms, moods, weight, temperature, water and height/weight are shared with her connected partner while sharing is on; medicines, notes, birth date and phone are only hers.

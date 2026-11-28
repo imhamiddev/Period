@@ -1,5 +1,9 @@
 package dev.imhamid.period.data
 
+import kotlinx.serialization.json.add
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.SerialName
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.builtins.ListSerializer
@@ -149,35 +153,60 @@ class Repo(private val store: SessionStore) {
         return json.decodeFromString(ListSerializer(DayLog.serializer()), s).associateBy { LocalDate.parse(it.day) }
     }
 
-    // ------------------------------------------------------------------ private body profile + health log (only the owner)
-    suspend fun body(): Body? {
-        val s = authed("GET", "/rest/v1/private_profile?user_id=eq.$uid&select=*")
-        return json.decodeFromString(ListSerializer(Body.serializer()), s).firstOrNull()
+    // ------------------------------------------------------------------ body profile + health log
+    // Shared with her connected partner: health_profile / health_logs. Only hers: private_profile / private_logs.
+    @Serializable private class PrivateProfileRow(
+        @SerialName("birth_date") val birthDate: String? = null,
+        val gender: String = "female",
+        val phone: String? = null,
+    )
+
+    @Serializable private class HealthProfileRow(
+        @SerialName("height_cm") val heightCm: Double? = null,
+        @SerialName("weight_kg") val weightKg: Double? = null,
+        @SerialName("water_goal_ml") val waterGoalMl: Int = 2400,
+        @SerialName("cup_ml") val cupMl: Int = 200,
+    )
+
+    @Serializable private class HealthLogRow(
+        val day: String,
+        @SerialName("weight_kg") val weightKg: Double? = null,
+        @SerialName("temperature_c") val temperatureC: Double? = null,
+        @SerialName("water_ml") val waterMl: Int? = null,
+    )
+
+    @Serializable private class PrivateLogRow(val day: String, val medicines: List<String> = emptyList(), val note: String? = null)
+
+    suspend fun body(userId: String = uid): Body? {
+        val hp = json.decodeFromString(ListSerializer(HealthProfileRow.serializer()), authed("GET", "/rest/v1/health_profile?user_id=eq.$userId&select=*")).firstOrNull()
+        val pp = if (userId == uid) json.decodeFromString(ListSerializer(PrivateProfileRow.serializer()), authed("GET", "/rest/v1/private_profile?user_id=eq.$userId&select=*")).firstOrNull() else null
+        if (hp == null && pp == null) return null
+        return Body(userId, pp?.birthDate, hp?.heightCm, hp?.weightKg, pp?.gender ?: "female", pp?.phone, hp?.waterGoalMl ?: 2400, hp?.cupMl ?: 200)
     }
 
     suspend fun upsertBody(b: Body) {
-        authed("POST", "/rest/v1/private_profile?on_conflict=user_id", json.encodeToString(Body.serializer(), b),
-            mapOf("Prefer" to "resolution=merge-duplicates,return=minimal"))
+        val prefer = mapOf("Prefer" to "resolution=merge-duplicates,return=minimal")
+        authed("POST", "/rest/v1/private_profile?on_conflict=user_id",
+            buildJsonObject { put("user_id", uid); put("birth_date", b.birthDate); put("gender", b.gender); put("phone", b.phone) }.toString(), prefer)
+        authed("POST", "/rest/v1/health_profile?on_conflict=user_id",
+            buildJsonObject { put("user_id", uid); put("height_cm", b.heightCm); put("weight_kg", b.weightKg); put("water_goal_ml", b.waterGoalMl); put("cup_ml", b.cupMl) }.toString(), prefer)
     }
 
-    suspend fun healthLogs(): Map<LocalDate, HealthLog> {
-        val s = authed("GET", "/rest/v1/health_logs?user_id=eq.$uid&select=*&order=day.desc&limit=800")
-        return json.decodeFromString(ListSerializer(HealthLog.serializer()), s).associateBy { LocalDate.parse(it.day) }
+    suspend fun healthLogs(userId: String = uid): Map<LocalDate, HealthLog> {
+        val shared = json.decodeFromString(ListSerializer(HealthLogRow.serializer()), authed("GET", "/rest/v1/health_logs?user_id=eq.$userId&select=*&order=day.desc&limit=800"))
+        val priv = if (userId == uid) json.decodeFromString(ListSerializer(PrivateLogRow.serializer()), authed("GET", "/rest/v1/private_logs?user_id=eq.$userId&select=*&order=day.desc&limit=800")).associateBy { it.day } else emptyMap()
+        val out = mutableMapOf<LocalDate, HealthLog>()
+        shared.forEach { r -> out[LocalDate.parse(r.day)] = HealthLog(userId, r.day, priv[r.day]?.medicines.orEmpty(), priv[r.day]?.note, r.weightKg, r.temperatureC, r.waterMl) }
+        priv.values.forEach { r -> val d = LocalDate.parse(r.day); if (d !in out) out[d] = HealthLog(userId, r.day, r.medicines, r.note) }
+        return out
     }
 
     suspend fun upsertHealth(h: HealthLog) {
-        authed("POST", "/rest/v1/health_logs?on_conflict=user_id,day", json.encodeToString(HealthLog.serializer(), h),
-            mapOf("Prefer" to "resolution=merge-duplicates,return=minimal"))
-    }
-
-    suspend fun articles(): List<Article> {
-        val s = authed("GET", "/rest/v1/articles?select=*&order=sort.asc&limit=200")
-        return json.decodeFromString(ListSerializer(Article.serializer()), s)
-    }
-
-    suspend fun sendTicket(subject: String, message: String) {
-        val b = buildJsonObject { put("user_id", uid); put("subject", subject); put("message", message) }.toString()
-        authed("POST", "/rest/v1/support_tickets", b, mapOf("Prefer" to "return=minimal"))
+        val prefer = mapOf("Prefer" to "resolution=merge-duplicates,return=minimal")
+        authed("POST", "/rest/v1/health_logs?on_conflict=user_id,day",
+            buildJsonObject { put("user_id", uid); put("day", h.day); put("weight_kg", h.weightKg); put("temperature_c", h.temperatureC); put("water_ml", h.waterMl) }.toString(), prefer)
+        authed("POST", "/rest/v1/private_logs?on_conflict=user_id,day",
+            buildJsonObject { put("user_id", uid); put("day", h.day); put("medicines", buildJsonArray { h.medicines.forEach { add(it) } }); put("note", h.note) }.toString(), prefer)
     }
 
     // ------------------------------------------------------------------ password reset (email code) / change
@@ -195,11 +224,6 @@ class Repo(private val store: SessionStore) {
 
     suspend fun changePassword(newPassword: String) {
         authed("PUT", "/auth/v1/user", buildJsonObject { put("password", newPassword) }.toString())
-    }
-
-    /** Signs this account out of every device. */
-    suspend fun signOutEverywhere() {
-        runCatching { authed("POST", "/auth/v1/logout?scope=global") }
     }
 
     suspend fun messages(): List<Message> {
@@ -257,9 +281,10 @@ class Repo(private val store: SessionStore) {
         val oid = owner?.id
         val d = if (oid != null) optional<Map<LocalDate, DayLog>>(emptyMap()) { dayLogs(oid) } else emptyMap()
         val m = optional<List<Message>>(emptyList()) { messages() }
-        if (me.role != "her") return with(days = d, inbox = m)
-        val b = optional<Body?>(null) { body() }
-        val h = optional<Map<LocalDate, HealthLog>>(emptyMap()) { healthLogs() }
+        if (oid == null) return with(days = d, inbox = m)
+        // her own data, or (for a partner) what she shares: height/weight/water and the daily health log
+        val b = optional<Body?>(null) { body(oid) }
+        val h = optional<Map<LocalDate, HealthLog>>(emptyMap()) { healthLogs(oid) }
         return with(days = d, inbox = m, body = b, health = h)
     }
 

@@ -167,7 +167,7 @@ fun HomeTab(vm: AppVM) {
                     Spacer(Modifier.height(12.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         BigButton(
-                            if (logged) "امروز پریودم ✓" else if (ov?.periodDay != null) "امروز هم خونریزی دارم" else "پریودم امروز شروع شد",
+                            if (logged) "امروز پریودم" else if (ov?.periodDay != null) "امروز هم خونریزی دارم" else "پریودم امروز شروع شد",
                             { vm.toggleDay(today) }, Modifier.weight(1.3f).height(50.dp),
                             color = if (logged) C.Green else C.Pink,
                         )

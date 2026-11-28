@@ -23,6 +23,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.BarChart
+import androidx.compose.material.icons.rounded.CalendarMonth
+import androidx.compose.material.icons.rounded.Circle
+import androidx.compose.material.icons.rounded.WaterDrop
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.ShowChart
 import androidx.compose.material3.Icon
@@ -80,7 +83,7 @@ fun TrackerTab(vm: AppVM) {
     Column(Modifier.fillMaxSize().background(C.Paper).statusBarsPadding().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Box(Modifier.fillMaxWidth().height(60.dp)) { Txt("ترکر", 22.sp, FontWeight.Bold, modifier = Modifier.align(Alignment.Center)) }
         SegTabs(listOf("آمار ثبت‌ها", "سلامت"), seg, { seg = it })
-        if (seg == 0) LogCountTab(vm, s) else HealthTab(vm, s, isHer)
+        if (seg == 0) LogCountTab(vm, s) else HealthTab(vm, s)
         Spacer(Modifier.height(12.dp))
     }
 }
@@ -101,8 +104,8 @@ private fun LogCountTab(vm: AppVM, s: Snapshot) {
         SectionHeader("چرخه‌های من", onMore = { vm.push(Screen.MyCycles) })
         Spacer(Modifier.height(12.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            StatTile("میانگین پریود", cs.avgPeriod?.let { "${Fa.n(it)} روز" } ?: "—", "🩸", Modifier.weight(1f))
-            StatTile("میانگین چرخه", cs.avgCycle?.let { "${Fa.n(it)} روز" } ?: "—", "📅", Modifier.weight(1f))
+            StatTile("میانگین پریود", cs.avgPeriod?.let { "${Fa.n(it)} روز" } ?: "—", Icons.Rounded.WaterDrop, Modifier.weight(1f))
+            StatTile("میانگین چرخه", cs.avgCycle?.let { "${Fa.n(it)} روز" } ?: "—", Icons.Rounded.CalendarMonth, Modifier.weight(1f))
         }
     }
 
@@ -112,13 +115,13 @@ private fun LogCountTab(vm: AppVM, s: Snapshot) {
         Row(Modifier.fillMaxWidth()) { Catalog.flows.forEach { f -> FlowOpt(f.id, false, flowCounts[f.id] ?: 0, null, Modifier.weight(1f)) } }
     }
 
-    CountPanel("علائم", symCounts.map { Triple(Catalog.symptom(it.key)?.emoji ?: "•", Catalog.symptom(it.key)?.label ?: Fa.symptomName(it.key), it.value) }, C.PinkSoft)
-    CountPanel("حال‌وهوا", moodCounts.map { Triple(Catalog.mood(it.key)?.emoji ?: "•", Catalog.mood(it.key)?.label ?: it.key, it.value) }, C.AmberSoft)
-    if (isHer) CountPanel("پیشگیری و دارو", medCounts.map { Triple(Catalog.medicine(it.key)?.emoji ?: "•", Catalog.medicine(it.key)?.label ?: it.key, it.value) }, C.SurfaceAlt)
+    CountPanel("علائم", symCounts.map { Triple(Catalog.symptom(it.key)?.icon ?: Icons.Rounded.Circle, Catalog.symptom(it.key)?.label ?: Fa.symptomName(it.key), it.value) }, C.PinkSoft)
+    CountPanel("حال‌وهوا", moodCounts.map { Triple(Catalog.mood(it.key)?.icon ?: Icons.Rounded.Circle, Catalog.mood(it.key)?.label ?: it.key, it.value) }, C.AmberSoft)
+    if (isHer) CountPanel("پیشگیری و دارو", medCounts.map { Triple(Catalog.medicine(it.key)?.icon ?: Icons.Rounded.Circle, Catalog.medicine(it.key)?.label ?: it.key, it.value) }, C.SurfaceAlt)
 }
 
 @Composable
-private fun CountPanel(title: String, items: List<Triple<String, String, Int>>, bg: Color) {
+private fun CountPanel(title: String, items: List<Triple<androidx.compose.ui.graphics.vector.ImageVector, String, Int>>, bg: Color) {
     var all by remember { mutableStateOf(false) }
     Panel {
         Txt(title, 18.sp, FontWeight.Bold)
@@ -131,7 +134,7 @@ private fun CountPanel(title: String, items: List<Triple<String, String, Int>>, 
         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
             shown.chunked(4).forEach { row ->
                 Row(Modifier.fillMaxWidth()) {
-                    row.forEach { (e, l, n) -> CircleOpt(e, l, false, null, Modifier.weight(1f), count = n, bg = bg) }
+                    row.forEach { (e, l, n) -> CircleOpt(e, l, false, null, Modifier.weight(1f), count = n) }
                     repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
                 }
             }
@@ -146,23 +149,19 @@ private fun CountPanel(title: String, items: List<Triple<String, String, Int>>, 
 }
 
 @Composable
-private fun StatTile(label: String, value: String, emoji: String, modifier: Modifier) {
+private fun StatTile(label: String, value: String, icon: androidx.compose.ui.graphics.vector.ImageVector, modifier: Modifier) {
     Box(modifier.clip(RoundedCornerShape(12.dp)).background(C.SurfaceAlt).padding(14.dp)) {
         Column {
             Txt(value, 20.sp, FontWeight.Bold)
             Txt(label, 12.sp, color = C.Muted)
         }
-        Txt(emoji, 34.sp, modifier = Modifier.align(Alignment.BottomEnd), lineHeight = 40.sp)
+        Icon(icon, null, tint = C.Pink, modifier = Modifier.align(Alignment.BottomEnd).size(34.dp))
     }
 }
 
 // ============================================================================ health
 @Composable
-private fun HealthTab(vm: AppVM, s: Snapshot, isHer: Boolean) {
-    if (!isHer) {
-        Panel { Txt("اطلاعات سلامت (وزن، دما و آب) خصوصیه و فقط برای خودِ کاربر دیده می‌شه.", 15.sp, color = C.Muted) }
-        return
-    }
+private fun HealthTab(vm: AppVM, s: Snapshot) {
     val wu = Units.weightUnit(vm)
     val tu = Units.tempUnit(vm)
     val vu = Units.cupUnit(vm)
@@ -289,9 +288,11 @@ private fun BmiPanel(vm: AppVM, s: Snapshot) {
         }
         Spacer(Modifier.height(12.dp))
         if (bmi == null) {
-            Txt("برای محاسبه‌ی BMI قد و وزنت رو تو اطلاعات شخصی وارد کن.", 14.sp, color = C.Muted)
-            Spacer(Modifier.height(10.dp))
-            OutlinePill("اطلاعات شخصی", { vm.push(Screen.PersonalInfo) })
+            Txt(if (s.me.role == "her") "برای محاسبه‌ی BMI قد و وزنت رو تو اطلاعات شخصی وارد کن." else "هنوز قد و وزنی ثبت نشده.", 14.sp, color = C.Muted)
+            if (s.me.role == "her") {
+                Spacer(Modifier.height(10.dp))
+                OutlinePill("اطلاعات شخصی", { vm.push(Screen.PersonalInfo) })
+            }
             return@Panel
         }
         Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
@@ -363,8 +364,8 @@ fun MyCyclesScreen(vm: AppVM) {
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Panel {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    StatTile("میانگین پریود", cs.avgPeriod?.let { "${Fa.n(it)} روز" } ?: "—", "🩸", Modifier.weight(1f))
-                    StatTile("میانگین چرخه", cs.avgCycle?.let { "${Fa.n(it)} روز" } ?: "—", "📅", Modifier.weight(1f))
+                    StatTile("میانگین پریود", cs.avgPeriod?.let { "${Fa.n(it)} روز" } ?: "—", Icons.Rounded.WaterDrop, Modifier.weight(1f))
+                    StatTile("میانگین چرخه", cs.avgCycle?.let { "${Fa.n(it)} روز" } ?: "—", Icons.Rounded.CalendarMonth, Modifier.weight(1f))
                 }
                 if (isHer) {
                     Spacer(Modifier.height(12.dp))

@@ -22,14 +22,7 @@ import dev.imhamid.period.R
 
 class Accent(val name: String, val primary: Color)
 
-val Accents = listOf(
-    Accent("صورتی", Color(0xFFFF6B9D)),
-    Accent("سرخابی", Color(0xFFE8457C)),
-    Accent("بنفش", Color(0xFF9B6BFF)),
-    Accent("آبی", Color(0xFF3D9BF0)),
-    Accent("فیروزه‌ای", Color(0xFF1FB5A0)),
-    Accent("نارنجی", Color(0xFFFF8A3D)),
-)
+val Accents = listOf(Accent("سرخابی", Color(0xFFE8457C)))
 
 /** App palette (Lunari). Surface colors follow [dark]; phase colors stay the same in both themes. */
 object C {
@@ -45,7 +38,7 @@ object C {
     val PinkDeep get() = lerp(a.primary, Color.Black, 0.18f)
 
     // Cycle phases
-    val Period = Color(0xFFFF6B9D)
+    val Period get() = Pink
     val Follicular = Color(0xFF2FA8F0)
     val Ovulation = Color(0xFFFFC02D)
     val Luteal = Color(0xFF9B7BFF)
@@ -90,12 +83,8 @@ val Vazir = FontFamily(
 
 /** mode: 0 = follow system, 1 = light, 2 = dark. */
 @Composable
-fun PeriodTheme(mode: Int = 0, content: @Composable () -> Unit) {
-    val dark = when (mode) {
-        1 -> false
-        2 -> true
-        else -> isSystemInDarkTheme()
-    }
+fun PeriodTheme(content: @Composable () -> Unit) {
+    val dark = false
     SideEffect { C.dark = dark }
     val view = LocalView.current
     SideEffect {

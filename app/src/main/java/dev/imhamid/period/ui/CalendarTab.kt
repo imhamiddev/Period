@@ -1,10 +1,12 @@
 package dev.imhamid.period.ui
 
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -19,11 +21,12 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowLeft
-import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material.icons.rounded.Today
+import androidx.compose.material.icons.rounded.CalendarMonth
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.WaterDrop
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -34,6 +37,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -43,6 +47,9 @@ import dev.imhamid.period.engine.Phase
 import dev.imhamid.period.engine.toEngine
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
+
+private val FertileGreen = Color(0xFF8BE36F)
+private val OvulationBlue = Color(0xFF8CC8FF)
 
 private fun chanceOf(engine: CycleEngine?, d: LocalDate): String = when (engine?.phaseOn(d)) {
     Phase.OVULATION -> "زیاد"
@@ -63,136 +70,167 @@ fun CalendarTab(vm: AppVM) {
     val engine = remember(s.owner, s.logs, today) { s.owner?.toEngine(today, s.logs) }
     var monthStart by remember { mutableStateOf(Fa.jalaliMonth(today).first) }
     var selected by remember { mutableStateOf(today) }
+    var menu by remember { mutableStateOf(false) }
     val (first, len) = remember(monthStart) { Fa.jalaliMonth(monthStart) }
     val lead = weekIndex(first)
     val rows = (lead + len + 6) / 7
+    val months = remember(today) {
+        var f = Fa.jalaliMonth(today).first
+        repeat(6) { f = Fa.jalaliMonth(f.minusDays(1)).first }
+        buildList { repeat(13) { val m = Fa.jalaliMonth(f); add(m.first); f = m.first.plusDays(m.second.toLong()) } }
+    }
 
-    Column(Modifier.fillMaxSize().background(C.Paper).statusBarsPadding().verticalScroll(rememberScrollState())) {
-        Box(Modifier.fillMaxWidth().height(60.dp).padding(horizontal = 16.dp)) {
-            Row(Modifier.align(Alignment.Center), verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(40.dp).pressable(role = null) { monthStart = first.plusDays(len.toLong()) }, contentAlignment = Alignment.Center) {
-                    Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, "ماه قبل", tint = C.Text)
+    Column(Modifier.fillMaxSize().background(C.Paper).statusBarsPadding().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp)) {
+        Box(Modifier.fillMaxWidth().height(60.dp)) { Txt("تقویم", 22.sp, FontWeight.Bold, modifier = Modifier.align(Alignment.Center)) }
+
+        // title + month picker pill
+        Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Txt("حال‌وهوای چرخه", 26.sp, FontWeight.Bold, modifier = Modifier.weight(1f))
+            Box {
+                Row(
+                    Modifier.clip(RoundedCornerShape(26.dp)).background(C.Surface).pressable { menu = true }.padding(start = 6.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Box(Modifier.size(34.dp).clip(CircleShape).background(C.Pink), contentAlignment = Alignment.Center) { Icon(Icons.Rounded.CalendarMonth, null, tint = Color.White, modifier = Modifier.size(18.dp)) }
+                    Txt(Fa.date(first, "MMMM yyyy"), 14.sp, FontWeight.Medium, modifier = Modifier.padding(horizontal = 10.dp))
+                    Box(Modifier.size(30.dp).clip(CircleShape).background(C.SurfaceAlt), contentAlignment = Alignment.Center) { Icon(Icons.Rounded.KeyboardArrowDown, null, tint = C.Text, modifier = Modifier.size(20.dp)) }
                 }
-                Txt(Fa.date(first, "MMMM yyyy"), 20.sp, FontWeight.Bold, modifier = Modifier.width(170.dp), align = TextAlign.Center)
-                Box(Modifier.size(40.dp).pressable(role = null) { monthStart = Fa.jalaliMonth(first.minusDays(1)).first }, contentAlignment = Alignment.Center) {
-                    Icon(Icons.AutoMirrored.Rounded.KeyboardArrowLeft, "ماه بعد", tint = C.Text)
+                DropdownMenu(menu, { menu = false }) {
+                    months.forEach { m ->
+                        DropdownMenuItem(text = { Txt(Fa.date(m, "MMMM yyyy"), 15.sp, if (m == first) FontWeight.Bold else FontWeight.Normal, if (m == first) C.Pink else C.Text) }, onClick = { monthStart = m; menu = false })
+                    }
                 }
-            }
-            Box(Modifier.align(Alignment.CenterEnd).size(44.dp).pressable(role = null) { monthStart = Fa.jalaliMonth(today).first; selected = today }, contentAlignment = Alignment.Center) {
-                Icon(Icons.Rounded.Today, "امروز", tint = C.Text)
             }
         }
 
-        Row(Modifier.fillMaxWidth().background(C.Surface).padding(vertical = 10.dp)) {
-            (0..6).forEach { Txt(weekdayLetter(it), 15.sp, FontWeight.Medium, C.Muted, Modifier.weight(1f), TextAlign.Center) }
-        }
+        Spacer(Modifier.height(10.dp))
+        Row(Modifier.fillMaxWidth()) { (0..6).forEach { Txt(weekdayLetter(it), 15.sp, FontWeight.Medium, C.Muted, Modifier.weight(1f), TextAlign.Center) } }
+        Spacer(Modifier.height(10.dp))
 
-        Column(Modifier.fillMaxWidth().background(C.Surface)) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             repeat(rows) { r ->
-                Row(Modifier.fillMaxWidth()) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     repeat(7) { c ->
                         val idx = r * 7 + c - lead
-                        val d = first.plusDays(idx.toLong())
-                        val inMonth = idx in 0 until len
-                        DayCell(d, inMonth, today, selected, engine, Modifier.weight(1f)) { selected = d; if (!inMonth) monthStart = Fa.jalaliMonth(d).first }
+                        if (idx in 0 until len) {
+                            val d = first.plusDays(idx.toLong())
+                            DayCell(d, today, selected, engine, Modifier.weight(1f)) { selected = d }
+                        } else Spacer(Modifier.weight(1f))
                     }
                 }
             }
         }
 
-        // ---- selected day
-        Column(Modifier.fillMaxWidth().background(C.Paper).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Panel {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Txt(Fa.date(selected, "d MMMM"), 20.sp, FontWeight.Bold)
-                        val cd = cycleDayOf(engine, selected)
-                        Txt(if (cd != null) "روز چرخه: ${Fa.n(cd)}" else Fa.date(selected, "EEEE"), 13.sp, color = C.Muted)
-                    }
-                    if (isHer) OutlinePill("ویرایش", { vm.push(Screen.EditPeriod) }, icon = Icons.Rounded.WaterDrop)
-                }
-                Spacer(Modifier.height(12.dp))
-                Box(Modifier.fillMaxWidth().height(1.dp).background(C.Line))
-                Spacer(Modifier.height(12.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    ChanceChip(chanceOf(engine, selected))
-                    Txt("  ·  احتمال بارداری", 15.sp, color = C.Text)
-                }
-                Spacer(Modifier.height(16.dp))
-                DaySummary(vm, selected)
-                if (isHer && !selected.isAfter(today)) {
-                    Spacer(Modifier.height(16.dp))
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
-                        BigButton("افزودن لاگ", { vm.openLog(selected) }, Modifier.width(200.dp).height(50.dp))
-                    }
+        // legend + add button
+        Row(Modifier.fillMaxWidth().padding(top = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                LegendDot(OvulationBlue, "روزهای تخمک‌گذاری")
+                LegendDot(FertileGreen, "روزهای باروری")
+                LegendDot(C.Period, "روزهای پریود")
+            }
+            if (isHer && !selected.isAfter(today)) {
+                Row(
+                    Modifier.clip(RoundedCornerShape(26.dp)).background(C.Pink).pressable { vm.openLog(selected) }.padding(horizontal = 18.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(Icons.Rounded.Add, null, tint = Color.White, modifier = Modifier.size(20.dp))
+                    Txt("افزودن علامت", 15.sp, FontWeight.Bold, Color.White, Modifier.padding(start = 6.dp))
                 }
             }
-            Spacer(Modifier.height(10.dp))
         }
+
+        // selected day
+        Spacer(Modifier.height(16.dp))
+        Panel {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Txt(Fa.date(selected, "d MMMM"), 20.sp, FontWeight.Bold)
+                    val cd = cycleDayOf(engine, selected)
+                    Txt(if (cd != null) "روز چرخه: ${Fa.n(cd)}" else Fa.date(selected, "EEEE"), 13.sp, color = C.Muted)
+                }
+                if (isHer) OutlinePill("ویرایش پریود", { vm.push(Screen.EditPeriod) }, icon = Icons.Rounded.WaterDrop)
+            }
+            Spacer(Modifier.height(12.dp))
+            Box(Modifier.fillMaxWidth().height(1.dp).background(C.Line))
+            Spacer(Modifier.height(12.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                ChanceChip(chanceOf(engine, selected))
+                Txt("  ·  احتمال بارداری", 15.sp, color = C.Text)
+            }
+            Spacer(Modifier.height(16.dp))
+            DaySummary(vm, selected)
+        }
+        Spacer(Modifier.height(24.dp))
     }
 }
 
 @Composable
-private fun DayCell(d: LocalDate, inMonth: Boolean, today: LocalDate, selected: LocalDate, engine: CycleEngine?, modifier: Modifier, onTap: () -> Unit) {
+private fun DayCell(d: LocalDate, today: LocalDate, selected: LocalDate, engine: CycleEngine?, modifier: Modifier, onTap: () -> Unit) {
     val phase = engine?.phaseOn(d)
     val logged = engine?.isLogged(d) == true
     val predicted = !logged && engine?.isPredictedPeriod(d) == true
-    val isToday = d == today
-    val bg = when {
-        logged -> C.Period
-        predicted -> C.Period.copy(alpha = 0.16f)
-        else -> Color.Transparent
+    val (color, kind) = when {
+        logged -> C.Period to FaceKind.Sad
+        predicted -> C.Period.copy(alpha = 0.55f) to FaceKind.Sad
+        phase == Phase.OVULATION -> OvulationBlue to FaceKind.Calm
+        phase == Phase.FERTILE -> FertileGreen to FaceKind.Smile
+        else -> C.Track to FaceKind.Neutral
     }
-    val dim = if (inMonth) 1f else 0.35f
-    val textColor = if (logged) Color.White else C.Text
-    Box(
-        modifier.height(66.dp).border(0.5.dp, C.Line)
-            .background(bg)
-            .then(if (isToday) Modifier.background(C.Orange.copy(alpha = if (logged) 0.0f else 0.18f)) else Modifier)
-            .then(if (d == selected) Modifier.border(2.dp, C.Pink) else Modifier)
+    val isToday = d == today
+    val sel = d == selected
+    Column(
+        modifier.height(70.dp).clip(RoundedCornerShape(22.dp))
+            .background(if (sel) C.PinkSoft else C.Surface)
+            .border(if (sel) 2.dp else if (isToday) 1.5.dp else 0.dp, if (sel) C.Pink else C.Pink.copy(alpha = 0.6f), RoundedCornerShape(22.dp))
             .pressable(role = null) { onTap() },
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
     ) {
-        Txt(Fa.jalaliDay(d), 19.sp, if (isToday) FontWeight.Bold else FontWeight.Medium, textColor.copy(alpha = dim), Modifier.align(Alignment.TopStart).padding(start = 6.dp, top = 4.dp))
-        cycleDayOf(engine, d)?.let { Txt(Fa.n(it), 10.sp, color = textColor.copy(alpha = 0.55f * dim), modifier = Modifier.align(Alignment.TopEnd).padding(end = 5.dp, top = 5.dp)) }
-        Box(Modifier.align(Alignment.BottomCenter).padding(bottom = 4.dp)) {
-            when {
-                logged || predicted -> Icon(Icons.Rounded.WaterDrop, null, tint = if (logged) Color.White else C.Period, modifier = Modifier.size(18.dp))
-                phase == Phase.OVULATION -> Txt("🥚", 14.sp, lineHeight = 16.sp)
-                phase == Phase.FERTILE -> Txt("🌼", 14.sp, lineHeight = 16.sp)
-                phase != null && inMonth -> Txt("🍀", 13.sp, color = Color.Unspecified, lineHeight = 15.sp)
-            }
-        }
+        Face(color, kind, 28.dp)
+        Spacer(Modifier.height(6.dp))
+        Txt(Fa.jalaliDay(d), 16.sp, if (isToday || sel) FontWeight.Bold else FontWeight.Medium, if (isToday) C.Pink else C.Text, lineHeight = 18.sp)
     }
 }
 
+@Composable
+private fun TagChip(icon: ImageVector, text: String) {
+    Row(Modifier.clip(RoundedCornerShape(20.dp)).background(C.PinkSoft).padding(horizontal = 12.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
+        Icon(icon, null, tint = C.Pink, modifier = Modifier.size(18.dp))
+        Txt(text, 13.sp, FontWeight.Medium, modifier = Modifier.padding(start = 6.dp))
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun DaySummary(vm: AppVM, day: LocalDate) {
     val s = vm.snap ?: return
     val isHer = s.me.role == "her"
     val dl = s.days[day]
-    val hl = if (isHer) s.health[day] else null
+    val hl = s.health[day]
     val flow = Fa.flowOf(dl?.symptoms.orEmpty())?.let { Catalog.normalizeFlow(it) }
     val moods = dl?.moods.orEmpty().mapNotNull { Catalog.mood(it) }
-    val syms = Fa.realSymptoms(dl?.symptoms.orEmpty()).map { id -> Catalog.symptom(id)?.let { "${it.emoji} ${it.label}" } ?: Fa.symptomName(id) }
+    val syms = Fa.realSymptoms(dl?.symptoms.orEmpty())
     val meds = hl?.medicines.orEmpty().mapNotNull { Catalog.medicine(it) }
     val has = flow != null || moods.isNotEmpty() || syms.isNotEmpty() || dl?.mood != null || meds.isNotEmpty() ||
         hl?.note?.isNotBlank() == true || hl?.weightKg != null || hl?.temperatureC != null || hl?.waterMl != null
     if (!has) {
         Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
             Txt("رکوردی ثبت نشده", 18.sp, FontWeight.Bold)
-            if (isHer && !day.isAfter(LocalDate.now())) Txt("برای افزودن لاگ بزن", 14.sp, color = C.Muted, modifier = Modifier.padding(top = 4.dp))
+            if (isHer && !day.isAfter(LocalDate.now())) Txt("برای افزودن علامت بزن", 14.sp, color = C.Muted, modifier = Modifier.padding(top = 4.dp))
         }
         return
     }
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         if (flow != null) Row(verticalAlignment = Alignment.CenterVertically) {
             Drops(Catalog.drops(flow), 28.dp)
             Txt("  خونریزی ${Catalog.flows.firstOrNull { it.id == flow }?.label ?: ""}", 15.sp)
         }
-        if (moods.isNotEmpty()) Txt(moods.joinToString("   ") { "${it.emoji} ${it.label}" }, 15.sp)
-        else if (dl?.mood != null) Txt("${Fa.moods[dl.mood - 1]} ${Fa.moodNames[dl.mood - 1]}", 15.sp)
-        if (syms.isNotEmpty()) Txt(syms.joinToString("  ·  "), 14.sp, color = C.Muted)
-        if (meds.isNotEmpty()) Txt(meds.joinToString("   ") { "${it.emoji} ${it.label}" }, 14.sp)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            moods.forEach { TagChip(it.icon, it.label) }
+            if (moods.isEmpty() && dl?.mood != null) TagChip(Catalog.legacyMoodIcon(dl.mood), Fa.moodNames[dl.mood - 1])
+            syms.forEach { id -> TagChip(Catalog.symptom(id)?.icon ?: Icons.Rounded.WaterDrop, Catalog.symptom(id)?.label ?: Fa.symptomName(id)) }
+            meds.forEach { TagChip(it.icon, it.label) }
+        }
         val stats = listOfNotNull(
             hl?.weightKg?.let { "وزن ${Fa.digits(fmt1(it))} کیلو" },
             hl?.temperatureC?.let { "دما ${Fa.digits(fmt1(it))}°" },

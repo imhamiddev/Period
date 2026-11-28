@@ -61,10 +61,6 @@ class SessionStore(ctx: Context) {
 
     fun setPref(key: String, value: String) = p.edit().putString("pf_$key", value).apply()
 
-    var articlesJson: String?
-        get() = p.getString("articles", null)
-        set(v) = p.edit().putString("articles", v).apply()
-
     var themeMode: Int
         get() = p.getInt("theme", 0)
         set(v) = p.edit().putInt("theme", v).apply()

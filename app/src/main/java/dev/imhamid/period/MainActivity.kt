@@ -91,12 +91,7 @@ class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        C.dark = when (vm.themeMode) {
-            1 -> false
-            2 -> true
-            else -> (resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
-        }
-        C.accent = vm.accent
+        C.dark = false
         locked = vm.lockEnabled && dev.imhamid.period.ui.Biometrics.available(this)
         setContent {
             // With the app lock on, hide the content from screenshots, screen recording and the Recents thumbnail.
@@ -104,7 +99,7 @@ class MainActivity : FragmentActivity() {
                 if (vm.lockEnabled) window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
                 else window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
             }
-            PeriodTheme(vm.themeMode) {
+            PeriodTheme {
                 CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
                     Root(vm, locked) { unlock() }
                 }

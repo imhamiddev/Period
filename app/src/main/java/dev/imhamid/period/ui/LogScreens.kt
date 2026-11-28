@@ -127,17 +127,17 @@ fun AddLogScreen(vm: AppVM) {
                 SectionHeader("علائم", onMore = { allSymptoms = !allSymptoms })
                 Spacer(Modifier.height(12.dp))
                 val list = if (allSymptoms) Catalog.symptoms else Catalog.symptoms.take(12)
-                OptGrid(list) { o, m -> CircleOpt(o.emoji, o.label, o.id in d.symptoms, { vm.updateDraft { it.copy(symptoms = it.symptoms.toggle(o.id)) } }, m, bg = C.PinkSoft) }
+                OptGrid(list) { o, m -> CircleOpt(o.icon, o.label, o.id in d.symptoms, { vm.updateDraft { it.copy(symptoms = it.symptoms.toggle(o.id)) } }, m, bg = C.PinkSoft) }
             }
             Panel {
                 Txt("حال‌وهوا", 17.sp, FontWeight.Bold)
                 Spacer(Modifier.height(12.dp))
-                OptGrid(Catalog.moods) { o, m -> CircleOpt(o.emoji, o.label, o.id in d.moods, { vm.updateDraft { it.copy(moods = it.moods.toggle(o.id)) } }, m, bg = C.AmberSoft) }
+                OptGrid(Catalog.moods) { o, m -> CircleOpt(o.icon, o.label, o.id in d.moods, { vm.updateDraft { it.copy(moods = it.moods.toggle(o.id)) } }, m, bg = C.PinkSoft) }
             }
             Panel {
                 Txt("پیشگیری و دارو", 17.sp, FontWeight.Bold)
                 Spacer(Modifier.height(12.dp))
-                OptGrid(Catalog.medicines) { o, m -> CircleOpt(o.emoji, o.label, o.id in d.medicines, { vm.updateDraft { it.copy(medicines = it.medicines.toggle(o.id)) } }, m, bg = Color(0xFFE8EAFF).copy(alpha = if (C.dark) 0.18f else 1f)) }
+                OptGrid(Catalog.medicines) { o, m -> CircleOpt(o.icon, o.label, o.id in d.medicines, { vm.updateDraft { it.copy(medicines = it.medicines.toggle(o.id)) } }, m, bg = C.PinkSoft) }
             }
             Panel {
                 Txt("یادداشت", 17.sp, FontWeight.Bold)
