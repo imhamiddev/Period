@@ -24,7 +24,7 @@ object Report {
     private const val W = 595f
     private const val H = 842f
     private const val L = 36f
-    private const val R = W - 36f
+    private const val RE = W - 36f
 
     private const val PINK = 0xFFE8457C.toInt()
     private const val SOFT = 0xFFFDE6EE.toInt()
@@ -88,33 +88,33 @@ object Report {
 
         // ---------------- header
         c.drawRect(0f, 0f, W, 96f, fill(PINK))
-        c.drawCircle(R - 18, 48f, 18f, fill(0xFFFFFFFF.toInt()))
+        c.drawCircle(RE - 18, 48f, 18f, fill(0xFFFFFFFF.toInt()))
         val drop = Path().apply {
-            val cx = R - 18; val cy = 48f
+            val cx = RE - 18; val cy = 48f
             moveTo(cx, cy - 11); cubicTo(cx + 3, cy - 5, cx + 8, cy - 1, cx + 8, cy + 3); cubicTo(cx + 8, cy + 8, cx + 4, cy + 10, cx, cy + 10)
             cubicTo(cx - 4, cy + 10, cx - 8, cy + 8, cx - 8, cy + 3); cubicTo(cx - 8, cy - 1, cx - 3, cy - 5, cx, cy - 11); close()
         }
         c.drawPath(drop, fill(PINK))
         val white = 0xFFFFFFFF.toInt()
         val pale = 0xFFFFD3E2.toInt()
-        text("گزارش چرخه‌ی قاعدگی", R - 46, H - 44, paint(bold, 20f, white))
-        text("تهیه‌شده با لونا · برای ارائه به پزشک", R - 46, H - 64, paint(reg, 10f, pale))
+        text("گزارش چرخه‌ی قاعدگی", RE - 46, H - 44, paint(bold, 20f, white))
+        text("تهیه‌شده با لونا · برای ارائه به پزشک", RE - 46, H - 64, paint(reg, 10f, pale))
         text(owner?.name.orEmpty().ifBlank { "—" }, L, H - 44, paint(bold, 13f, white, Paint.Align.LEFT))
         text("بازه‌ی گزارش: ${Fa.date(since, "d MMMM yyyy")} تا ${Fa.date(today, "d MMMM yyyy")}", L, H - 62, paint(reg, 9.5f, pale, Paint.Align.LEFT))
         text("تاریخ تهیه: ${Fa.date(today, "d MMMM yyyy")}", L, H - 78, paint(reg, 9.5f, pale, Paint.Align.LEFT))
 
         // ---------------- patient row
         var yb = H - 130
-        card(L, yb - 34, R - L, 40, BG, BG)
+        card(L, yb - 34, RE - L, 40, BG, BG)
         val items = listOf(
             "سن" to (age?.let { "${Fa.n(it)} سال" } ?: "—"),
             "قد" to (body?.heightCm?.let { "${Fa.digits(fmt1(it))} سانتی‌متر" } ?: "—"),
             "وزن" to (latestKg?.let { "${Fa.digits(fmt1(it))} کیلوگرم" } ?: "—"),
             "BMI" to (bmi?.let { "${Fa.digits(fmt1(Math.round(it * 10) / 10.0))} · ${Bmi.band(it).label}" } ?: "—"),
         )
-        val colW = (R - L) / 4
+        val colW = (RE - L) / 4
         items.forEachIndexed { i, (k, v) ->
-            val x = R - 12 - i * colW
+            val x = RE - 12 - i * colW
             text(k, x, yb - 8, paint(reg, 8.5f, MUTED)); text(v, x, yb - 24, paint(med, 11f, INK))
         }
 
@@ -127,9 +127,9 @@ object Report {
             Triple("بازه‌ی طول چرخه", minMax, ORANGE),
         )
         val gap = 8f
-        val cw = (R - L - gap * 3) / 4
+        val cw = (RE - L - gap * 3) / 4
         stats.forEachIndexed { i, (k, v, col) ->
-            val x = R - (i + 1) * cw - i * gap
+            val x = RE - (i + 1) * cw - i * gap
             card(x, yb - 56, cw, 62)
             rrect(x + cw - 5, yb - 56 + 10, 3f, 42f, 1.5f, fill(col))
             text(k, x + cw - 14, yb - 16, paint(reg, 8.5f, MUTED)); text(v, x + cw - 14, yb - 40, paint(bold, 15f, INK))
@@ -137,22 +137,22 @@ object Report {
 
         // ---------------- cycle history
         yb = H - 270
-        text("تاریخچه‌ی چرخه‌ها", R, yb, paint(bold, 13f, INK))
-        c.drawLine(L, y(yb - 8), R, y(yb - 8), fill(LINE, Paint.Style.STROKE, 1f))
+        text("تاریخچه‌ی چرخه‌ها", RE, yb, paint(bold, 13f, INK))
+        c.drawLine(L, y(yb - 8), RE, y(yb - 8), fill(LINE, Paint.Style.STROKE, 1f))
         val hy = yb - 26
-        text("شروع پریود", R, hy, paint(reg, 8.5f, MUTED)); text("طول پریود", R - 95, hy, paint(reg, 8.5f, MUTED))
-        text("طول چرخه", R - 175, hy, paint(reg, 8.5f, MUTED)); text("نمای چرخه", R - 255, hy, paint(reg, 8.5f, MUTED))
+        text("شروع پریود", RE, hy, paint(reg, 8.5f, MUTED)); text("طول پریود", RE - 95, hy, paint(reg, 8.5f, MUTED))
+        text("طول چرخه", RE - 175, hy, paint(reg, 8.5f, MUTED)); text("نمای چرخه", RE - 255, hy, paint(reg, 8.5f, MUTED))
         val shown = inRange.takeLast(4).reversed()
-        if (shown.isEmpty()) text("هنوز پریودی ثبت نشده.", R, hy - 22, paint(reg, 10f, MUTED))
+        if (shown.isEmpty()) text("هنوز پریودی ثبت نشده.", RE, hy - 22, paint(reg, 10f, MUTED))
         val luteal = owner?.lutealLength ?: 14
         shown.forEachIndexed { i, p ->
             val ry = hy - 22 - i * 24
             val next = periods.getOrNull(periods.indexOf(p) + 1)
             val cl = next?.let { ChronoUnit.DAYS.between(p.start, it.start).toInt() }
-            text(Fa.date(p.start, "d MMMM"), R, ry, paint(med, 10f, INK))
-            text("${Fa.n(p.length)} روز", R - 95, ry, paint(reg, 10f, INK))
-            text(if (cl != null) "${Fa.n(cl)} روز" else "در جریان", R - 175, ry, paint(reg, 10f, INK))
-            val bw = R - 255 - L - 60 + 60
+            text(Fa.date(p.start, "d MMMM"), RE, ry, paint(med, 10f, INK))
+            text("${Fa.n(p.length)} روز", RE - 95, ry, paint(reg, 10f, INK))
+            text(if (cl != null) "${Fa.n(cl)} روز" else "در جریان", RE - 175, ry, paint(reg, 10f, INK))
+            val bw = RE - 255 - L - 60 + 60
             val tot = (cl ?: owner?.cycleLength ?: 28).toFloat()
             rrect(L, ry - 3, bw, 9f, 4.5f, fill(0xFFEFEFEF.toInt()))
             rrect(L + bw * (1 - p.length / tot), ry - 3, bw * p.length / tot, 9f, 4.5f, fill(PINK))
@@ -163,12 +163,12 @@ object Report {
             }
         }
         val ly = hy - 22 - 4 * 24 - 6
-        c.drawCircle(R - 4, y(ly), 3f, fill(PINK)); text("پریود", R - 12, ly - 3, paint(reg, 8f, MUTED))
-        c.drawCircle(R - 60, y(ly), 3f, fill(YEL)); text("پنجره‌ی باروری", R - 68, ly - 3, paint(reg, 8f, MUTED))
+        c.drawCircle(RE - 4, y(ly), 3f, fill(PINK)); text("پریود", RE - 12, ly - 3, paint(reg, 8f, MUTED))
+        c.drawCircle(RE - 60, y(ly), 3f, fill(YEL)); text("پنجره‌ی باروری", RE - 68, ly - 3, paint(reg, 8f, MUTED))
 
         // ---------------- symptoms / moods
         yb = H - 436
-        val half = (R - L - 14) / 2
+        val half = (RE - L - 14) / 2
         fun bars(x0: Float, title: String, data: List<Pair<String, Int>>, col: Int) {
             card(x0, yb - 146, half, 152)
             text(title, x0 + half - 14, yb - 18, paint(bold, 11.5f, INK))
@@ -184,13 +184,13 @@ object Report {
                 text(Fa.n(v), x0 + 14 + full + 6, ry - 1, paint(med, 9f, MUTED, Paint.Align.LEFT))
             }
         }
-        bars(R - half, "علائم پرتکرار", symCounts.map { (Catalog.symptom(it.key)?.label ?: Fa.symptomName(it.key)) to it.value }, PINK)
+        bars(RE - half, "علائم پرتکرار", symCounts.map { (Catalog.symptom(it.key)?.label ?: Fa.symptomName(it.key)) to it.value }, PINK)
         bars(L, "حال‌وهوا", moodCounts.map { (Catalog.mood(it.key)?.label ?: it.key) to it.value }, BLUE)
 
         // ---------------- health charts
         yb = H - 598
-        text("سلامت در ${Fa.n(days)} روز اخیر", R, yb, paint(bold, 13f, INK))
-        c.drawLine(L, y(yb - 8), R, y(yb - 8), fill(LINE, Paint.Style.STROKE, 1f))
+        text("سلامت در ${Fa.n(days)} روز اخیر", RE, yb, paint(bold, 13f, INK))
+        c.drawLine(L, y(yb - 8), RE, y(yb - 8), fill(LINE, Paint.Style.STROKE, 1f))
         fun chart(x0: Float, title: String, vals: List<Double>, col: Int, last: String) {
             val w = half; val h = 100f
             card(x0, yb - 24 - h, w, h + 4)
@@ -208,22 +208,22 @@ object Report {
             pts.filterIndexed { i, _ -> i % 3 == 0 }.forEach { c.drawCircle(it.first, y(it.second), 2.4f, fill(0xFFFFFFFF.toInt())); c.drawCircle(it.first, y(it.second), 1.5f, fill(col)) }
             text("ابتدای بازه", gx0 + 0f, gy0 - 11, paint(reg, 7.5f, MUTED, Paint.Align.LEFT)); text("امروز", gx1, gy0 - 11, paint(reg, 7.5f, MUTED))
         }
-        chart(R - half, "وزن، کیلوگرم", weights, GREEN, weights.lastOrNull()?.let { Fa.digits(fmt1(it)) }.orEmpty())
+        chart(RE - half, "وزن، کیلوگرم", weights, GREEN, weights.lastOrNull()?.let { Fa.digits(fmt1(it)) }.orEmpty())
         chart(L, "دمای صبحگاهی، درجه‌ی سانتی‌گراد", temps, ORANGE, temps.lastOrNull()?.let { Fa.digits(fmt1(it)) }.orEmpty())
 
         // ---------------- contraception + notes
         yb = H - 744
-        card(R - half, yb - 52, half, 58)
-        text("پیشگیری و دارو", R - 14, yb - 18, paint(bold, 11f, INK))
-        text(meds.take(4).joinToString("، ") { "${Catalog.medicine(it.key)?.label ?: it.key} ${Fa.n(it.value)} بار" }.ifBlank { "در این بازه چیزی ثبت نشده." }, R - 14, yb - 38, paint(reg, 9.5f, MUTED))
+        card(RE - half, yb - 52, half, 58)
+        text("پیشگیری و دارو", RE - 14, yb - 18, paint(bold, 11f, INK))
+        text(meds.take(4).joinToString("، ") { "${Catalog.medicine(it.key)?.label ?: it.key} ${Fa.n(it.value)} بار" }.ifBlank { "در این بازه چیزی ثبت نشده." }, RE - 14, yb - 38, paint(reg, 9.5f, MUTED))
         card(L, yb - 52, half, 58, SOFT, SOFT)
         text("نکات قابل توجه", L + half - 14, yb - 18, paint(bold, 11f, PINK))
         text(flags.firstOrNull()?.let { "${it.title}: ${it.text.substringBefore(". ").trim()}" }?.take(70) ?: "چرخه‌ها منظم‌ان؛ مورد هشداری ثبت نشده.", L + half - 14, yb - 38, paint(reg, 9.5f, INK))
         if (flags.size > 1) text("و ${Fa.n(flags.size - 1)} مورد دیگه", L + half - 14, yb - 50, paint(reg, 8.5f, MUTED))
 
         // ---------------- footer
-        c.drawLine(L, y(40f), R, y(40f), fill(LINE, Paint.Style.STROKE, 1f))
-        text("این گزارش بر پایه‌ی ثبت‌های خود کاربر ساخته شده و تشخیص پزشکی نیست.", R, 26f, paint(reg, 8f, MUTED))
+        c.drawLine(L, y(40f), RE, y(40f), fill(LINE, Paint.Style.STROKE, 1f))
+        text("این گزارش بر پایه‌ی ثبت‌های خود کاربر ساخته شده و تشخیص پزشکی نیست.", RE, 26f, paint(reg, 8f, MUTED))
         text("لونا", L, 26f, paint(reg, 8f, MUTED, Paint.Align.LEFT))
 
         doc.finishPage(page)
